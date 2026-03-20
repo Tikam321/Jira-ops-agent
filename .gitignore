@@ -45,3 +45,7 @@ Thumbs.db
 
 ### Application ###
 application-local.yml
+
+## .env
+.env
+.env.**

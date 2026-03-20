@@ -19,9 +19,9 @@ spring:
         format_sql: true
 
 jira:
-  base-url: https://tikamsuvasiya333.atlassian.net/
-  email: tikamsuvasiya333@gmail.com
-  api-token: ATATT3xFfGF09pqi3KhRR3WXrKyj6L7lHAdqkg-pYnuvDxtHYmHKvnFLeAikis-4f7eO-PKxunI17_vR4AhZ3pjvE9t-9t-yVG02YH_kdB68PkfZU6zjudhT6fIARXDjFZbKm9WkzNYhMZkiIiIYNZep4aN6T51qZAtO9LfDvYGOUr9xKGx67tc=A4846293
+  base-url: ${JIRA_BASE_URL}
+  email: ${JIRA_EMAIL}
+  api-token: ${JIRA_API_TOKEN}
 
 server:
   port: 8081
