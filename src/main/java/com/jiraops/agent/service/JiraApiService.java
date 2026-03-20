@@ -35,13 +35,6 @@ public class JiraApiService {
                 .build();
     }
 
-//    private WebClient getWebClient() {
-//        if (webClient == null) {
-//
-//        }
-//        return webClient;
-//    }
-
     public List<JiraIssueDto> searchIssues(String jql, int maxResults) {
         try {
             Map response = webClient
