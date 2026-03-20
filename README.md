@@ -1,117 +1,113 @@
 # Jira Automation Agent MVP (Web + Agent-Assisted Bulk Operations)
 
-## 1) Problem Statement
-Teams spend significant time doing repetitive Jira operations manually:
-- Moving issue status (`To Do -> In Progress -> Done`)
-- Updating due dates in bulk (for example, end-of-month rollover)
-- Handling repeated monthly administrative updates
+## Prerequisites
 
-This is error-prone and time-consuming.  
-We need a safe automation layer with a web dashboard plus agent-assisted command execution.
+- **Java 17+**
+- **PostgreSQL 14+**
+- **Gradle 8.x** (or use included wrapper)
 
-## 2) MVP Goal
-Build a web-based Jira automation tool that allows users to:
-1. Fetch and filter their Jira stories/issues.
-2. Bulk update due dates.
-3. Bulk change issue status (using valid workflow transitions).
-4. Use an agent command bar for natural-language automation.
-5. Execute updates safely with preview, approval, audit log, and retry.
+## Quick Setup
 
-## 3) In-Scope (MVP)
-- Jira Cloud integration (`atlassian.net`)
-- User auth via Jira OAuth 2.0 (preferred) or API token (single-user mode)
-- “My Issues” dashboard with filter/search
-- Bulk action: due date shift
-- Bulk action: status transition
-- Agent command bar that converts user intent to a structured execution plan
-- Dry-run preview before execution
-- Approval-confirmation step
-- Job execution history and audit logs
+### 1. Database Setup
+```sql
+CREATE DATABASE jira_ops;
+```
 
-## 4) Out-of-Scope (MVP)
-- Fully autonomous agent with no approval
-- Complex workflow editing/creation in Jira
-- Cross-project admin policy engine
-- AI chat-only interface as primary UX
-- Advanced analytics dashboards
+### 2. Configure Jira Credentials
 
-## 5) Primary Use Cases
+Update `src/main/resources/application.yml`:
+```yaml
+jira:
+  base-url: https://your-domain.atlassian.net
+  email: your-email@example.com
+  api-token: your-api-token  # Generate at https://id.atlassian.com/manage-profile/security/api-tokens
+```
 
-### UC-1: Bulk Due Date Shift
-**User input:** “Shift due date of my SCRUM stories due this month by +1 month.”
+Or use environment variables:
+```bash
+export JIRA_BASE_URL=https://your-domain.atlassian.net
+export JIRA_EMAIL=your-email@example.com
+export JIRA_API_TOKEN=your-api-token
+```
 
-**Expected behavior:**
-1. Agent generates JQL + update action.
-2. System shows impacted issues and before/after due dates.
-3. User confirms.
-4. System updates issues in batches.
-5. Result report shown (success/fail/partial failures).
+### 3. Build & Run
+```bash
+./gradlew bootRun
+```
 
-### UC-2: Bulk Status Change
-**User input:** “Move my `To Do` SCRUM stories to `In Progress`.”
+Or build JAR first:
+```bash
+./gradlew build
+java -jar build/libs/jira-ops-agent-1.0.0.jar
+```
 
-**Expected behavior:**
-1. System fetches issues via JQL.
-2. For each issue, checks valid Jira transitions.
-3. Applies transition only if valid.
-4. Reports skipped issues with reasons (invalid transition, permission, etc).
+### 4. Access API
+Base URL: `http://localhost:8080/api/v1`
 
-### UC-3: Monthly Rollover Job
-**User input:** “At month-end, push unresolved due dates to next month.”
+Default credentials: `admin` / `admin`
 
-**Expected behavior:**
-- Run as scheduled job (optional in MVP v1.1) or manual command now.
-- Use saved filter + action template.
-- Generate audit trail for all changes.
+## API Endpoints
 
-## 6) Product UX Recommendation
-Use **Dashboard-first + Command Bar**, not chat-only.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/commands` | List all 4 predefined commands |
+| GET | `/commands/{id}` | Get specific command details |
+| POST | `/preview/{id}` | Preview affected issues before execution |
+| POST | `/execute/{id}` | Execute the command on Jira |
+| GET | `/jobs` | View execution history |
 
-### UI Modules
-1. **My Issues Dashboard**
-   - Filters: project, assignee, status, due date range, labels
-   - Saved views
-2. **Bulk Action Panel**
-   - Action type: due-date shift / status transition
-   - Preview impacted issues
-3. **Agent Command Bar**
-   - Natural language input
-   - Shows parsed intent and generated plan
-4. **Execution History**
-   - Job list, status, counts, errors
-5. **Audit Log View**
-   - Per issue before/after values + actor + timestamp
+## Available Commands
 
-## 7) Agent Role (MVP)
-The agent does **planning**, not unrestricted execution.
+| ID | Name | Action |
+|----|------|--------|
+| CMD001 | Fetch My Issues | Fetch all issues assigned to current user |
+| CMD002 | Shift Due Date +1 Month | Shift due dates forward by 1 month |
+| CMD003 | Change Status: To Do → In Progress | Move To Do issues to In Progress |
+| CMD004 | Change Status: In Progress → Done | Move In Progress issues to Done |
 
-### Agent responsibilities
-- Parse natural language command.
-- Generate structured plan:
-  - JQL query
-  - operation type
-  - field changes
-  - safety checks
-- Ask for confirmation if scope is large/ambiguous.
+## Example Usage
 
-### Non-responsibilities
-- Directly mutate Jira without preview/approval.
-- Execute unsupported operations.
+### 1. Preview which issues will be affected
+```bash
+curl -u admin:admin -X POST http://localhost:8080/api/v1/preview/CMD002
+```
 
-## 8) Command Grammar (MVP)
-Examples:
-- `fetch my SCRUM stories for this month`
-- `shift due date +1 month for my SCRUM stories with status in ("To Do","In Progress")`
-- `change status To Do -> In Progress for project SCRUM assignee me`
+### 2. Execute the command
+```bash
+curl -u admin:admin -X POST http://localhost:8080/api/v1/execute/CMD002
+```
 
-Structured internal format:
-```json
-{
-  "action": "UPDATE_DUEDATE",
-  "jql": "project=SCRUM AND assignee=currentUser() AND duedate <= endOfMonth()",
-  "update": {
-    "type": "SHIFT_DUEDATE",
-    "delta": "+1M"
-  },
-  "dryRun": true
-}
+### 3. Check execution history
+```bash
+curl -u admin:admin http://localhost:8080/api/v1/jobs
+```
+
+## Project Structure
+
+```
+src/main/java/com/jiraops/agent/
+├── controller/          # REST endpoints
+├── service/            # Business logic
+├── model/
+│   ├── dto/           # Request/Response objects
+│   ├── entity/        # JPA entities
+│   └── enums/         # ActionType, JobStatus
+├── repository/        # JPA repositories
+├── security/          # Auth config
+└── exception/         # Exception handling
+```
+
+## Architecture
+
+```
+User Selects Command → Generate JQL → Preview Issues → User Confirms → Execute on Jira API → Log Audit
+```
+
+## Future Enhancements (Phase 2+)
+
+- [ ] OAuth 2.0 authentication
+- [ ] Add more command templates
+- [ ] Rule-based NLP parser
+- [ ] LLM-powered command understanding
+- [ ] Scheduled job execution
+- [ ] Web dashboard UI

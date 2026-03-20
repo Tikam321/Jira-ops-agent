@@ -1,0 +1,32 @@
+
+spring:
+  application:
+    name: jira-ops-agent
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jira_ops
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+jira:
+  base-url: https://tikamsuvasiya333.atlassian.net/
+  email: tikamsuvasiya333@gmail.com
+  api-token: ATATT3xFfGF09pqi3KhRR3WXrKyj6L7lHAdqkg-pYnuvDxtHYmHKvnFLeAikis-4f7eO-PKxunI17_vR4AhZ3pjvE9t-9t-yVG02YH_kdB68PkfZU6zjudhT6fIARXDjFZbKm9WkzNYhMZkiIiIYNZep4aN6T51qZAtO9LfDvYGOUr9xKGx67tc=A4846293
+
+server:
+  port: 8081
+
+logging:
+  level:
+    com.jiraops: DEBUG
+    org.springframework.web: INFO
