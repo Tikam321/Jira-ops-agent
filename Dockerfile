@@ -25,9 +25,6 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 # Copy the jar file from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Copy .env file (required for the app to run)
-COPY .env .env
-
 # Set ownership
 RUN chown -R appuser:appgroup /app
 
@@ -37,5 +34,5 @@ USER appuser
 # Expose port
 EXPOSE 8080
 
-# Run the application
+# Run the application - environment variables will be passed at runtime
 ENTRYPOINT ["java", "-jar", "app.jar"]
