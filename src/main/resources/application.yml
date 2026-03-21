@@ -23,9 +23,6 @@ jira:
   email: ${JIRA_EMAIL}
   api-token: ${JIRA_API_TOKEN}
 
-gemini:
-  api-key: ${GEMINI_API_KEY}
-
 groq:
   api-key: ${GROQ_API_KEY}
 
