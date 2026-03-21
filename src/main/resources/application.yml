@@ -35,4 +35,11 @@ server:
 logging:
   level:
     com.jiraops: DEBUG
+    com.jiraops.agent.service.GroqService: DEBUG
+    com.jiraops.agent.service.JiraApiService: DEBUG
+    com.jiraops.agent.service.NaturalLanguageService: DEBUG
     org.springframework.web: INFO
+    org.springframework.web.reactive: DEBUG
+    reactor.netty: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

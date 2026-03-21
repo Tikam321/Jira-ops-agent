@@ -36,6 +36,8 @@ dependencies {
     // Gemini AI
     implementation 'com.google.genai:google-genai:1.28.0'
 
+
+
     // YAML Config
     implementation 'org.yaml:snakeyaml'
     
