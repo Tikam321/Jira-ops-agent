@@ -47,18 +47,46 @@ public class GroqService {
         String systemPrompt = """
             You are a Jira assistant. Based on the user's request, determine the appropriate action and call the relevant tool.
             
-            Available tools:
+            DECISION RULES:
+            - Use SINGLE tool if user specifies a SPECIFIC issue (e.g., "move PROJ-123 to done")
+            - Use BULK tool if user wants to update MULTIPLE issues (e.g., "move all my bugs to done", "shift due dates")
+            
+            Available SINGLE ISSUE tools:
             - search_issues: Search Jira issues using JQL. Use for queries like "show me my bugs", "find tasks"
-            - transition_issue: Change the status of an issue. Use for "move to done", "change status"
-            - add_comment: Add a comment to an issue. Use for "add comment", "add note"
-            - update_duedate: Update the due date of an issue. Use for "set due date", "update deadline"
-            - assign_issue: Assign a Jira issue to a user. Use for "assign to", "assign this to me". Pass the assignee as "me" if user wants to assign to themselves.
+            - transition_issue: Change the status of ONE specific issue. Use when user specifies exact issue key.
+            - add_comment: Add a comment to ONE issue. Use when user specifies exact issue key.
+            - update_duedate: Update the due date of ONE issue. Use when user specifies exact issue key.
+            - assign_issue: Assign ONE issue to a user. Use when user specifies exact issue key.
+            
+            Available BULK tools (for multiple issues):
+            - bulk_transition: Change status of MULTIPLE issues matching a JQL filter.
+              Use for: "move all my bugs to done", "transition all in progress", "change status of my tasks"
+              Params: jql (required), status (required)
+            - bulk_update_duedate: Update due date of MULTIPLE issues matching a JQL filter.
+              Use for: "shift due dates by 1 week", "extend deadlines", "set due date for all tasks"
+              Params: jql (required), dueDate (required, YYYY-MM-DD)
+              NOTE: To shift dates, first search to find issues, then use this with the same JQL
+            - bulk_add_comment: Add comment to MULTIPLE issues matching a JQL filter.
+              Use for: "add comment to all my bugs", "note on completed tasks"
+              Params: jql (required), comment (required)
+            - bulk_assign: Assign MULTIPLE issues matching a JQL filter.
+              Use for: "assign all unassigned to me", "reassign my tasks"
+              Params: jql (required), assignee (required, use "me" for current user)
+            
+            JQL GENERATION RULES:
+            - For "all my bugs/stories/tasks": assignee = currentUser() AND issuetype = Bug/Story/Task
+            - For "in progress": status = "In Progress"
+            - For "done/completed": status = Done
+            - For "due this week": duedate <= endOfWeek()
+            - Combine with AND: assignee = currentUser() AND issuetype = Bug AND status = "To Do"
+            
+            EXAMPLES:
+            Single: "move PROJ-123 to done" -> transition_issue with issueKey="PROJ-123", status="Done"
+            Bulk: "move all my bugs to in progress" -> bulk_transition with jql="assignee = currentUser() AND issuetype = Bug AND status = 'To Do'", status="In Progress"
+            Bulk: "assign all unassigned bugs to me" -> bulk_assign with jql="assignee is empty AND issuetype = Bug", assignee="me"
             
             Respond ONLY with a JSON object containing the tool call:
             {"tool": "tool_name", "params": {"param1": "value1", ...}}
-            
-            If the user wants to search, always include assignee = currentUser() in JQL unless specified otherwise.
-            If the user wants to assign to themselves, pass "me" as the assignee parameter.
             """;
 
         List<Map<String, Object>> tools = List.of(
@@ -134,6 +162,66 @@ public class GroqService {
                                                 "assignee", Map.of("type", "string", "description", "Username or email of the assignee")
                                         ),
                                         "required", List.of("issueKey", "assignee")
+                                )
+                        )
+                ),
+                Map.of(
+                        "type", "function",
+                        "function", Map.of(
+                                "name", "bulk_transition",
+                                "description", "Change status of multiple Jira issues matching a JQL filter",
+                                "parameters", Map.of(
+                                        "type", "object",
+                                        "properties", Map.of(
+                                                "jql", Map.of("type", "string", "description", "JQL query to select issues (e.g., 'assignee = currentUser() AND issuetype = Bug AND status = To Do')"),
+                                                "status", Map.of("type", "string", "description", "Target status name (e.g., 'In Progress', 'Done')")
+                                        ),
+                                        "required", List.of("jql", "status")
+                                )
+                        )
+                ),
+                Map.of(
+                        "type", "function",
+                        "function", Map.of(
+                                "name", "bulk_update_duedate",
+                                "description", "Update due date of multiple Jira issues matching a JQL filter",
+                                "parameters", Map.of(
+                                        "type", "object",
+                                        "properties", Map.of(
+                                                "jql", Map.of("type", "string", "description", "JQL query to select issues"),
+                                                "dueDate", Map.of("type", "string", "description", "New due date in YYYY-MM-DD format")
+                                        ),
+                                        "required", List.of("jql", "dueDate")
+                                )
+                        )
+                ),
+                Map.of(
+                        "type", "function",
+                        "function", Map.of(
+                                "name", "bulk_add_comment",
+                                "description", "Add a comment to multiple Jira issues matching a JQL filter",
+                                "parameters", Map.of(
+                                        "type", "object",
+                                        "properties", Map.of(
+                                                "jql", Map.of("type", "string", "description", "JQL query to select issues"),
+                                                "comment", Map.of("type", "string", "description", "Comment text to add")
+                                        ),
+                                        "required", List.of("jql", "comment")
+                                )
+                        )
+                ),
+                Map.of(
+                        "type", "function",
+                        "function", Map.of(
+                                "name", "bulk_assign",
+                                "description", "Assign multiple Jira issues matching a JQL filter",
+                                "parameters", Map.of(
+                                        "type", "object",
+                                        "properties", Map.of(
+                                                "jql", Map.of("type", "string", "description", "JQL query to select issues"),
+                                                "assignee", Map.of("type", "string", "description", "Assignee - use 'me' for current user, or accountId")
+                                        ),
+                                        "required", List.of("jql", "assignee")
                                 )
                         )
                 )
@@ -273,6 +361,154 @@ public class GroqService {
                                     boolean success = jiraApiService.assignIssue(issueKey, assignee);
                                     log.info("Assign result: {}", success);
                                     result = success ? "Assigned " + issueKey + " to " + assignee : "Failed to assign issue";
+                                }
+                                case "bulk_transition" -> {
+                                    String jql = (String) params.get("jql");
+                                    String status = (String) params.get("status");
+                                    log.info("Executing bulk_transition - JQL: {}, status: {}", jql, status);
+                                    
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    log.info("Found {} issues matching JQL", issues.size());
+                                    
+                                    int successCount = 0;
+                                    int failCount = 0;
+                                    List<String> failedIssues = new ArrayList<>();
+                                    
+                                    for (JiraIssueDto issue : issues) {
+                                        try {
+                                            boolean success = jiraApiService.transitionIssueByStatus(issue.getKey(), status);
+                                            if (success) successCount++;
+                                            else {
+                                                failCount++;
+                                                failedIssues.add(issue.getKey());
+                                            }
+                                        } catch (Exception e) {
+                                            failCount++;
+                                            failedIssues.add(issue.getKey());
+                                            log.warn("Failed to transition {}: {}", issue.getKey(), e.getMessage());
+                                        }
+                                    }
+                                    
+                                    if (failCount == 0) {
+                                        result = String.format("Successfully transitioned %d issues to '%s'", successCount, status);
+                                    } else {
+                                        result = String.format("Transitioned %d issues to '%s'. Failed: %d (%s)", 
+                                                successCount, status, failCount, String.join(", ", failedIssues));
+                                    }
+                                    log.info("Bulk transition completed - {}", result);
+                                }
+                                case "bulk_update_duedate" -> {
+                                    String jql = (String) params.get("jql");
+                                    String dueDate = (String) params.get("dueDate");
+                                    log.info("Executing bulk_update_duedate - JQL: {}, dueDate: {}", jql, dueDate);
+                                    
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    log.info("Found {} issues matching JQL", issues.size());
+                                    
+                                    int successCount = 0;
+                                    int failCount = 0;
+                                    List<String> failedIssues = new ArrayList<>();
+                                    
+                                    for (JiraIssueDto issue : issues) {
+                                        try {
+                                            boolean success = jiraApiService.updateDuedate(issue.getKey(), dueDate);
+                                            if (success) successCount++;
+                                            else {
+                                                failCount++;
+                                                failedIssues.add(issue.getKey());
+                                            }
+                                        } catch (Exception e) {
+                                            failCount++;
+                                            failedIssues.add(issue.getKey());
+                                            log.warn("Failed to update due date for {}: {}", issue.getKey(), e.getMessage());
+                                        }
+                                    }
+                                    
+                                    if (failCount == 0) {
+                                        result = String.format("Successfully updated due date to %s for %d issues", dueDate, successCount);
+                                    } else {
+                                        result = String.format("Updated due date for %d issues to %s. Failed: %d (%s)", 
+                                                successCount, dueDate, failCount, String.join(", ", failedIssues));
+                                    }
+                                    log.info("Bulk update due date completed - {}", result);
+                                }
+                                case "bulk_add_comment" -> {
+                                    String jql = (String) params.get("jql");
+                                    String comment = (String) params.get("comment");
+                                    log.info("Executing bulk_add_comment - JQL: {}, comment: {}", jql, comment);
+                                    
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    log.info("Found {} issues matching JQL", issues.size());
+                                    
+                                    int successCount = 0;
+                                    int failCount = 0;
+                                    List<String> failedIssues = new ArrayList<>();
+                                    
+                                    for (JiraIssueDto issue : issues) {
+                                        try {
+                                            boolean success = jiraApiService.addComment(issue.getKey(), comment);
+                                            if (success) successCount++;
+                                            else {
+                                                failCount++;
+                                                failedIssues.add(issue.getKey());
+                                            }
+                                        } catch (Exception e) {
+                                            failCount++;
+                                            failedIssues.add(issue.getKey());
+                                            log.warn("Failed to add comment to {}: {}", issue.getKey(), e.getMessage());
+                                        }
+                                    }
+                                    
+                                    if (failCount == 0) {
+                                        result = String.format("Successfully added comment to %d issues", successCount);
+                                    } else {
+                                        result = String.format("Added comment to %d issues. Failed: %d (%s)", 
+                                                successCount, failCount, String.join(", ", failedIssues));
+                                    }
+                                    log.info("Bulk add comment completed - {}", result);
+                                }
+                                case "bulk_assign" -> {
+                                    String jql = (String) params.get("jql");
+                                    String assignee = (String) params.get("assignee");
+                                    
+                                    if (assignee != null && (assignee.toLowerCase().contains("me") || 
+                                        assignee.toLowerCase().contains("myself") || assignee.isEmpty())) {
+                                        String accountId = jiraApiService.getCurrentUserAccountId();
+                                        log.info("Resolved 'me' to accountId: {}", accountId);
+                                        assignee = accountId != null ? accountId : assignee;
+                                    }
+                                    
+                                    log.info("Executing bulk_assign - JQL: {}, assignee: {}", jql, assignee);
+                                    
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    log.info("Found {} issues matching JQL", issues.size());
+                                    
+                                    int successCount = 0;
+                                    int failCount = 0;
+                                    List<String> failedIssues = new ArrayList<>();
+                                    
+                                    for (JiraIssueDto issue : issues) {
+                                        try {
+                                            boolean success = jiraApiService.assignIssue(issue.getKey(), assignee);
+                                            if (success) successCount++;
+                                            else {
+                                                failCount++;
+                                                failedIssues.add(issue.getKey());
+                                            }
+                                        } catch (Exception e) {
+                                            failCount++;
+                                            failedIssues.add(issue.getKey());
+                                            log.warn("Failed to assign {}: {}", issue.getKey(), e.getMessage());
+                                        }
+                                    }
+                                    
+                                    if (failCount == 0) {
+                                        result = String.format("Successfully assigned %d issues to %s", successCount, assignee);
+                                    } else {
+                                        result = String.format("Assigned %d issues to %s. Failed: %d (%s)", 
+                                                successCount, assignee, failCount, String.join(", ", failedIssues));
+                                    }
+                                    log.info("Bulk assign completed - {}", result);
                                 }
                                 default -> {
                                     log.warn("Unknown tool called: {}", toolName);
