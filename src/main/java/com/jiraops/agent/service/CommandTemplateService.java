@@ -45,6 +45,24 @@ public class CommandTemplateService {
             .actionType(ActionType.CHANGE_STATUS)
             .jql("assignee = currentUser() AND status = \"In Progress\"")
             .parameters("{\"fromStatus\": \"In Progress\", \"toStatus\": \"Done\"}")
+            .build(),
+
+        CommandTemplate.builder()
+            .id("CMD005")
+            .name("Add Comment to Issues")
+            .description("Add a comment to selected issues")
+            .actionType(ActionType.ADD_COMMENT)
+            .jql("assignee = currentUser() AND updated >= -7d")
+            .parameters("{\"comment\": \"Updated via Jira Ops Agent\"}")
+            .build(),
+
+        CommandTemplate.builder()
+            .id("CMD006")
+            .name("Assign Issues to Me")
+            .description("Assign unassigned issues to current user")
+            .actionType(ActionType.ASSIGN_ISSUE)
+            .jql("assignee = null AND project = MY_PROJECT")
+            .parameters("{\"assignee\": \"currentUser\"}")
             .build()
     );
 

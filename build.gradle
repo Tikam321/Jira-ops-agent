@@ -1,7 +1,8 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.5'
-    id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.springframework.boot' version '3.4.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.cloud.tools.jib' version '3.4.3'
 }
 
 group = 'com.jiraops'
@@ -9,6 +10,15 @@ version = '1.0.0'
 
 java {
     sourceCompatibility = '17'
+    targetCompatibility = '17'
+}
+
+plugins.withType(JavaPlugin) {
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
 }
 
 repositories {
@@ -31,14 +41,20 @@ dependencies {
     
     // API Client
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    implementation 'io.github.cdimascio:java-dotenv:5.2.2'
+    
+    // OAuth2 Client (for Jira OAuth)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     
     // YAML Config
     implementation 'org.yaml:snakeyaml'
     
+    // MCP Java SDK
+    implementation 'io.modelcontextprotocol.sdk:mcp:1.1.1'
+    
     // Lombok
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
     
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -47,4 +63,35 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+jib {
+    from {
+        image = 'eclipse-temurin:17-jre'
+        platforms {
+            platform {
+                architecture = 'arm64'
+                os = 'linux'
+            }
+            platform {
+                architecture = 'amd64'
+                os = 'linux'
+            }
+        }
+    }
+    to {
+        image = 'docker.io/tikam321/jira-ops-agent'
+        tags = ['latest', "${version}"]
+    }
+    container {
+        jvmFlags = ['-Xms512m', '-Xmx1024m', '-XX:+UseG1GC']
+        ports = ['8081']
+        creationTime = 'USE_CURRENT_TIMESTAMP'
+        mainClass = 'com.jiraops.agent.JiraOpsAgentApplication'
+        args = ['--spring.profiles.active=prod']
+        environment = [
+            'SPRING_PROFILES_ACTIVE': 'prod'
+        ]
+    }
+    allowInsecureRegistries = false
 }

@@ -14,7 +14,7 @@ public class NaturalLanguageService {
 
     private final GroqService groqService;
 
-    public NlQueryResponse processQuery(NlQueryRequest request) {
+    public NlQueryResponse processQuery(NlQueryRequest request, String accessToken) {
         log.info("===========================================");
         log.info("NaturalLanguageService: Processing query");
         log.info("Original request: {}", request);
@@ -26,7 +26,7 @@ public class NaturalLanguageService {
             log.info("Calling GroqService to process: {}", naturalLanguageQuery);
             long startTime = System.currentTimeMillis();
             
-            String result = groqService.processNaturalLanguageQuery(naturalLanguageQuery);
+            String result = groqService.processNaturalLanguageQuery(naturalLanguageQuery, accessToken);
             
             long duration = System.currentTimeMillis() - startTime;
             log.info("Query processed successfully in {} ms", duration);

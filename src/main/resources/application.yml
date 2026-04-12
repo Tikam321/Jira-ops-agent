@@ -1,42 +1,61 @@
-
 spring:
   application:
     name: jira-ops-agent
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/jira_ops
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/jira_ops}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+  security:
+    oauth2:
+      client:
+        registration:
+          jira:
+            client-id: yi9E2sfsfBSmzJNI03AXC06h3r4GOJJF
+            client-secret: ATOAhDF4tiy33AHjSzl6MwRwG5kad1vUK0GoOX6j1nOmybluR-0P7asXXQI1tAjgH1TJE0E45D3D
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: read:jira-user, read:jira-work, write:jira-work, offline_access, read:me
+            client-name: Jira
+        provider:
+          jira:
+            issuer-uri: https://auth.atlassian.com
+            authorization-uri: https://auth.atlassian.com/authorize
+            token-uri: https://auth.atlassian.com/oauth/token
+            user-info-uri: https://api.atlassian.com/me
+            user-name-attribute: account_id
+
 jira:
-  base-url: ${JIRA_BASE_URL}
-  email: ${JIRA_EMAIL}
-  api-token: ${JIRA_API_TOKEN}
+  base-url: https://api.atlassian.com
 
 groq:
-  api-key: ${GROQ_API_KEY}
+  api-key: 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
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost}
 
 logging:
   level:
-    com.jiraops: DEBUG
-    com.jiraops.agent.service.GroqService: DEBUG
-    com.jiraops.agent.service.JiraApiService: DEBUG
-    com.jiraops.agent.service.NaturalLanguageService: DEBUG
-    org.springframework.web: INFO
-    org.springframework.web.reactive: DEBUG
-    reactor.netty: INFO
+    com.jiraops: ${LOG_LEVEL_APP:INFO}
+    com.jiraops.agent.service.GroqService: ${LOG_LEVEL_GROQ:INFO}
+    com.jiraops.agent.service.JiraApiService: ${LOG_LEVEL_JIRA:INFO}
+    com.jiraops.agent.service.NaturalLanguageService: ${LOG_LEVEL_NL:INFO}
+    org.springframework.web: ${LOG_LEVEL_WEB:INFO}
+    org.springframework.web.reactive: ${LOG_LEVEL_REACTIVE:WARN}
+    reactor.netty: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

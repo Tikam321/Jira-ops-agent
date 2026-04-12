@@ -1,9 +1,9 @@
 package com.jiraops.agent.service;
 
 import com.jiraops.agent.model.dto.JiraIssueDto;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -14,31 +14,12 @@ import java.util.*;
 @Slf4j
 public class JiraApiService {
 
-    @Value("${jira.base-url}")
-    private String jiraBaseUrl;
+    private static final String ATLASSIAN_API_BASE = "https://api.atlassian.com";
 
-    @Value("${jira.email}")
-    private String jiraEmail;
+//    @Value("${jira.base-url}")
+//    private String jiraBaseUrl;
 
-    @Value("${jira.api-token}")
-    private String jiraApiToken;
-
-    private WebClient webClient;
-
-    @PostConstruct
-    public void init() {
-        log.info("Initializing JiraApiService with base URL: {}", jiraBaseUrl);
-        webClient = WebClient.builder()
-                .baseUrl(jiraBaseUrl)
-                .defaultHeader(HttpHeaders.AUTHORIZATION,
-                        "Basic " + Base64.getEncoder().encodeToString(
-                                (jiraEmail + ":" + jiraApiToken).getBytes()))
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, "application/json")
-                .build();
-        log.debug("Jira WebClient initialized");
-    }
-
-    public List<JiraIssueDto> searchIssues(String jql, int maxResults) {
+    public List<JiraIssueDto> searchIssues(String jql, int maxResults, String accessToken) {
         log.info("===========================================");
         log.info("Jira API: Searching issues");
         log.info("JQL: {}", jql);
@@ -48,42 +29,157 @@ public class JiraApiService {
         try {
             long startTime = System.currentTimeMillis();
             
-            Map response = webClient
-                .get()
-                .uri(uriBuilder -> uriBuilder
-                    .path("/rest/api/3/search/jql")
-                    .queryParam("jql", jql)
-                    .queryParam("maxResults", maxResults)
-                    .queryParam("fields", "summary,status,assignee,project,duedate,issuetype")
-                    .build())
+            if (accessToken == null || accessToken.isEmpty()) {
+                throw new RuntimeException("Access token is null or empty");
+            }
+            log.debug("Using access token (first 20 chars): {}", accessToken.substring(0, Math.min(20, accessToken.length())));
+            
+            // Get accessible resources to find the correct site ID
+            WebClient accessClient = WebClient.builder()
+                .baseUrl(ATLASSIAN_API_BASE)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+                .build();
+            
+            var typeRef = new ParameterizedTypeReference<List<Map<String, Object>>>() {};
+            List<Map<String, Object>> resources = accessClient.get()
+                .uri("/oauth/token/accessible-resources")
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(typeRef)
                 .block();
-
+            
+            if (resources == null || resources.isEmpty()) {
+                throw new RuntimeException("No accessible resources found");
+            }
+            
+            // Get the first resource - use 'id' (site ID/UUID) 
+            Map<String, Object> firstResource = resources.get(0);
+            
+            // Log all keys to debug what we have
+            log.info("Resource keys: {}", firstResource.keySet());
+            log.info("Resource data: {}", firstResource);
+            
+            // Use 'id' field which is the cloud ID (UUID format)
+            String siteId = (String) firstResource.get("id");
+            String siteName = (String) firstResource.get("name");
+            String siteUrl = (String) firstResource.get("url");
+            List<String> scopes = (List<String>) firstResource.get("scopes");
+            log.info("Using site ID: {} (site: {} - {})", siteId, siteName, siteUrl);
+            log.info("Available scopes: {}", scopes);
+            
+            // Use proper API format: /ex/jira/{cloudId}/rest/api/3
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            log.info("API URL: {}", apiUrl);
+            
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
+            log.info("Making request with jql: {}", jql);
+            
+            // Request body for POST
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("jql", jql);
+            requestBody.put("maxResults", maxResults);
+            requestBody.put("fields", List.of("summary", "status", "assignee", "project", "duedate", "issuetype"));
+            
+            log.debug("Request body: {}", requestBody);
+            
+            Map searchResult;
+            try {
+                searchResult = webClient
+                    .post()
+                    .uri("/search/jql")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+                
+                log.info("Search successful with POST /search/jql!");
+            } catch (Exception e) {
+                log.error("POST /search/jql failed: {}. Trying GET /search...", e.getMessage());
+                
+                try {
+                    searchResult = webClient
+                        .get()
+                        .uri(uriBuilder -> uriBuilder
+                            .path("/search")
+                            .queryParam("jql", jql)
+                            .queryParam("maxResults", maxResults)
+                            .queryParam("fields", "summary,status,assignee,project,duedate,issuetype")
+                            .build())
+                        .retrieve()
+                        .bodyToMono(Map.class)
+                        .block();
+                    log.info("Search successful with GET /search!");
+                } catch (Exception e2) {
+                    log.error("Both POST and GET failed: {}", e2.getMessage());
+                    throw new RuntimeException("Failed to search Jira issues: " + e2.getMessage());
+                }
+            }
+            
             long duration = System.currentTimeMillis() - startTime;
             log.info("Jira API search completed in {} ms", duration);
             
-            List<Map<String, Object>> issues = (List<Map<String, Object>>) response.get("issues");
+            List<Map<String, Object>> issues = (List<Map<String, Object>>) searchResult.get("issues");
             log.info("Found {} issues from Jira", issues != null ? issues.size() : 0);
             
-            List<JiraIssueDto> result = parseIssues(issues);
-            log.debug("Parsed {} issues to DTOs", result.size());
+            List<JiraIssueDto> dtoResult = parseIssues(issues);
+            log.debug("Parsed {} issues to DTOs", dtoResult.size());
             
-            return result;
+            return dtoResult;
         } catch (Exception e) {
             log.error("Failed to search Jira issues: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to search Jira issues: " + e.getMessage());
         }
     }
 
+    private String getJiraDomain(String accessToken) {
+        try {
+            WebClient webClient = WebClient.builder()
+                .baseUrl(ATLASSIAN_API_BASE)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .build();
+            
+            var typeRef = new org.springframework.core.ParameterizedTypeReference<List<Map<String, Object>>>() {};
+            List<Map<String, Object>> resources = webClient.get()
+                .uri("/oauth/token/accessible-resources")
+                .retrieve()
+                .bodyToMono(typeRef)
+                .block();
+            
+            log.debug("Accessible resources: {}", resources);
+            
+            if (resources != null && !resources.isEmpty()) {
+                Map<String, Object> firstResource = resources.get(0);
+                
+                // Log all keys to debug what we have
+                log.info("Resource keys: {}", firstResource.keySet());
+                log.info("Resource data: {}", firstResource);
+                
+                // Use 'id' field which is the cloud ID (UUID format)
+                String id = (String) firstResource.get("id");
+                log.info("Found site ID: {}", id);
+                return id;
+            }
+            
+            throw new RuntimeException("No accessible resources found");
+        } catch (Exception e) {
+            log.error("Failed to get site ID: {}", e.getMessage());
+            throw new RuntimeException("Failed to get site ID: " + e.getMessage());
+        }
+    }
+
     @SuppressWarnings("unchecked")
-    public List<Map<String, String>> getTransitions(String issueKey) {
+    public List<Map<String, String>> getTransitions(String issueKey, String accessToken) {
         log.debug("Getting transitions for issue: {}", issueKey);
         
         try {
+            String siteId = getJiraDomain(accessToken);
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
             Map<String, Object> response = (Map<String, Object>) webClient
                 .get()
-                .uri("/rest/api/3/issue/" + issueKey + "/transitions")
+                .uri("/issue/" + issueKey + "/transitions")
                 .retrieve()
                 .bodyToMono(Map.class)
                 .block();
@@ -110,13 +206,17 @@ public class JiraApiService {
         }
     }
 
-    public boolean updateIssue(String issueKey, Map<String, Object> fields) {
+    public boolean updateIssue(String issueKey, Map<String, Object> fields, String accessToken) {
         log.info("Updating issue: {} with fields: {}", issueKey, fields);
         
         try {
+            String siteId = getJiraDomain(accessToken);
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
             webClient
                 .put()
-                .uri("/rest/api/3/issue/" + issueKey)
+                .uri("/issue/" + issueKey)
                 .bodyValue(Map.of("fields", fields))
                 .retrieve()
                 .bodyToMono(Void.class)
@@ -130,13 +230,17 @@ public class JiraApiService {
         }
     }
 
-    public boolean transitionIssue(String issueKey, String transitionId) {
+    public boolean transitionIssue(String issueKey, String transitionId, String accessToken) {
         log.info("Transitioning issue: {} to transition ID: {}", issueKey, transitionId);
         
         try {
+            String siteId = getJiraDomain(accessToken);
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
             webClient
                 .post()
-                .uri("/rest/api/3/issue/" + issueKey + "/transitions")
+                .uri("/issue/" + issueKey + "/transitions")
                 .bodyValue(Map.of("transition", Map.of("id", transitionId)))
                 .retrieve()
                 .bodyToMono(Void.class)
@@ -150,12 +254,12 @@ public class JiraApiService {
         }
     }
 
-    public boolean transitionIssueByStatus(String issueKey, String statusName) {
+    public boolean transitionIssueByStatus(String issueKey, String statusName, String accessToken) {
         log.info("-------------------------------------------");
         log.info("Attempting to transition issue: {} to status: {}", issueKey, statusName);
         
         try {
-            List<Map<String, String>> transitions = getTransitions(issueKey);
+            List<Map<String, String>> transitions = getTransitions(issueKey, accessToken);
             
             if (transitions.isEmpty()) {
                 log.warn("No available transitions for issue: {}", issueKey);
@@ -168,14 +272,11 @@ public class JiraApiService {
                 if (transition.get("name").equalsIgnoreCase(statusName)) {
                     String transitionId = transition.get("id");
                     log.info("Found matching transition: {} ({})", transition.get("name"), transitionId);
-                    return transitionIssue(issueKey, transitionId);
+                    return transitionIssue(issueKey, transitionId, accessToken);
                 }
             }
             
             log.warn("Status '{}' not found in available transitions for {}", statusName, issueKey);
-            log.debug("Available statuses: {}", transitions.stream()
-                    .map(t -> t.get("name"))
-                    .toList());
             return false;
         } catch (Exception e) {
             log.error("Failed to transition issue {} to status {}: {}", issueKey, statusName, e.getMessage(), e);
@@ -183,7 +284,7 @@ public class JiraApiService {
         }
     }
 
-    public boolean addComment(String issueKey, String comment) {
+    public boolean addComment(String issueKey, String comment, String accessToken) {
         log.info("-------------------------------------------");
         log.info("Adding comment to issue: {}", issueKey);
         log.info("Comment: {}", comment);
@@ -191,9 +292,13 @@ public class JiraApiService {
         try {
             long startTime = System.currentTimeMillis();
             
+            String siteId = getJiraDomain(accessToken);
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
             webClient
                 .post()
-                .uri("/rest/api/3/issue/" + issueKey + "/comment")
+                .uri("/issue/" + issueKey + "/comment")
                 .bodyValue(Map.of("body", Map.of(
                         "type", "doc",
                         "version", 1,
@@ -218,7 +323,7 @@ public class JiraApiService {
         }
     }
 
-    public boolean updateDuedate(String issueKey, String dueDate) {
+    public boolean updateDuedate(String issueKey, String dueDate, String accessToken) {
         log.info("-------------------------------------------");
         log.info("Updating due date for issue: {}", issueKey);
         log.info("New due date: {}", dueDate);
@@ -226,9 +331,13 @@ public class JiraApiService {
         try {
             long startTime = System.currentTimeMillis();
             
+            String siteId = getJiraDomain(accessToken);
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
             webClient
                 .put()
-                .uri("/rest/api/3/issue/" + issueKey)
+                .uri("/issue/" + issueKey)
                 .bodyValue(Map.of("fields", Map.of("duedate", dueDate)))
                 .retrieve()
                 .bodyToMono(Void.class)
@@ -243,38 +352,60 @@ public class JiraApiService {
         }
     }
 
-    public boolean assignIssue(String issueKey, String assignee) {
+    public boolean assignIssue(String issueKey, String assignee, String accessToken) {
         log.info("-------------------------------------------");
         log.info("Assigning issue: {} to: {}", issueKey, assignee);
         
         try {
             long startTime = System.currentTimeMillis();
             
+            String siteId = getJiraDomain(accessToken);
+            String apiUrl = ATLASSIAN_API_BASE + "/ex/jira/" + siteId + "/rest/api/3";
+            WebClient webClient = createWebClient(accessToken, apiUrl);
+            
+            log.info("Assign API URL: {}", apiUrl + "/issue/" + issueKey + "/assignee");
+            
             Map<String, Object> body = new HashMap<>();
             body.put("accountId", assignee);
             
-            webClient
+            log.debug("Assign request body: {}", body);
+            
+            String response = webClient
                 .put()
-                .uri("/rest/api/3/issue/" + issueKey + "/assignee")
+                .uri("/issue/" + issueKey + "/assignee")
                 .bodyValue(body)
                 .retrieve()
-                .bodyToMono(Void.class)
+                .bodyToMono(String.class)
                 .block();
+            
+            log.debug("Assign response: {}", response);
             
             long duration = System.currentTimeMillis() - startTime;
             log.info("Successfully assigned {} to {} in {} ms", issueKey, assignee, duration);
             return true;
         } catch (Exception e) {
             log.error("Failed to assign {} to {}: {}", issueKey, assignee, e.getMessage(), e);
-            throw new RuntimeException("Failed to assign issue: " + e.getMessage());
+            // Try to get more details from the error response
+            if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException ex) {
+                try {
+                    String errorBody = ex.getResponseBodyAsString();
+                    log.error("Error response body: {}", errorBody);
+                } catch (Exception ignored) {}
+            }
+            return false;
         }
     }
     
-    public String getCurrentUserAccountId() {
+    public String getCurrentUserAccountId(String accessToken) {
         try {
+            WebClient webClient = WebClient.builder()
+                .baseUrl(ATLASSIAN_API_BASE)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .build();
+            
             Map<String, Object> response = (Map<String, Object>) webClient
                 .get()
-                .uri("/rest/api/3/myself")
+                .uri("/me")
                 .retrieve()
                 .bodyToMono(Map.class)
                 .block();
@@ -284,6 +415,17 @@ public class JiraApiService {
             log.error("Failed to get current user accountId: {}", e.getMessage());
             return null;
         }
+    }
+
+    private WebClient createWebClient(String accessToken, String baseUrl) {
+        log.debug("Creating WebClient with baseUrl: {}", baseUrl);
+        
+        return WebClient.builder()
+                .baseUrl(baseUrl)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+                .build();
     }
 
     private List<JiraIssueDto> parseIssues(List<Map<String, Object>> issues) {

@@ -27,13 +27,13 @@ public class ExecutionService {
 
     private static final int MAX_RESULTS = 100;
 
-    public PreviewResult preview(String commandId) {
+    public PreviewResult preview(String commandId, String accessToken) {
         CommandTemplate command = commandTemplateService.getCommandById(commandId);
         if (command == null) {
             throw new IllegalArgumentException("Command not found: " + commandId);
         }
 
-        List<JiraIssueDto> issues = jiraApiService.searchIssues(command.getJql(), MAX_RESULTS);
+        List<JiraIssueDto> issues = jiraApiService.searchIssues(command.getJql(), MAX_RESULTS, accessToken);
         
         List<PreviewChange> changes = generatePreviewChanges(command, issues);
         
@@ -55,13 +55,13 @@ public class ExecutionService {
             .build();
     }
 
-    public ExecutionResult execute(String commandId) {
+    public ExecutionResult execute(String commandId, String accessToken) {
         CommandTemplate command = commandTemplateService.getCommandById(commandId);
         if (command == null) {
             throw new IllegalArgumentException("Command not found: " + commandId);
         }
 
-        List<JiraIssueDto> issues = jiraApiService.searchIssues(command.getJql(), MAX_RESULTS);
+        List<JiraIssueDto> issues = jiraApiService.searchIssues(command.getJql(), MAX_RESULTS, accessToken);
         
         ExecutionJob job = ExecutionJob.builder()
             .commandId(commandId)
@@ -78,7 +78,7 @@ public class ExecutionService {
 
         for (JiraIssueDto issue : issues) {
             try {
-                executeAction(command, issue, job.getId());
+                executeAction(command, issue, job.getId(), accessToken);
                 successCount++;
             } catch (Exception e) {
                 failedCount++;
@@ -134,14 +134,14 @@ public class ExecutionService {
         return changes;
     }
 
-    private void executeAction(CommandTemplate command, JiraIssueDto issue, Long jobId) {
+    private void executeAction(CommandTemplate command, JiraIssueDto issue, Long jobId, String accessToken) {
         if (command.getActionType() == ActionType.UPDATE_DUEDATE) {
             String newDate = calculateNewDueDate(issue.getDueDate(), "+1M");
-            jiraApiService.updateIssue(issue.getKey(), Map.of("duedate", newDate));
+            jiraApiService.updateIssue(issue.getKey(), Map.of("duedate", newDate), accessToken);
             logAudit(issue.getKey(), "duedate", issue.getDueDate(), newDate, "UPDATE_DUEDATE", jobId);
             
         } else if (command.getActionType() == ActionType.CHANGE_STATUS) {
-            List<Map<String, String>> transitions = jiraApiService.getTransitions(issue.getKey());
+            List<Map<String, String>> transitions = jiraApiService.getTransitions(issue.getKey(), accessToken);
             Map<String, Object> params = null;
             try {
                 params = objectMapper.readValue(command.getParameters().toString(), Map.class);
@@ -156,7 +156,7 @@ public class ExecutionService {
                     .orElse(null);
                 
                 if (transitionId != null) {
-                    jiraApiService.transitionIssue(issue.getKey(), transitionId);
+                    jiraApiService.transitionIssue(issue.getKey(), transitionId, accessToken);
                     logAudit(issue.getKey(), "status", issue.getStatus(), toStatus, "CHANGE_STATUS", jobId);
                 }
             }

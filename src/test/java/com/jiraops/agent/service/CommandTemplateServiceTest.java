@@ -10,7 +10,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "spring.security.oauth2.client.registration.jira.client-id=test-client-id",
+    "spring.security.oauth2.client.registration.jira.client-secret=test-client-secret"
+})
 class CommandTemplateServiceTest {
 
     @Autowired

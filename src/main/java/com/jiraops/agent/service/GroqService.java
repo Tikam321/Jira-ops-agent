@@ -22,6 +22,7 @@ public class GroqService {
 
     private final JiraApiService jiraApiService;
     private final ObjectMapper objectMapper;
+    private final JiraToolService jiraToolService;
 
     @Value("${groq.api-key}")
     private String apiKey;
@@ -39,7 +40,7 @@ public class GroqService {
         log.debug("GroqService WebClient initialized");
     }
 
-    public String processNaturalLanguageQuery(String query) {
+    public String processNaturalLanguageQuery(String query, String accessToken) {
         log.info("===========================================");
         log.info("Received natural language query: {}", query);
         log.info("===========================================");
@@ -90,155 +91,20 @@ public class GroqService {
             """;
 
         List<Map<String, Object>> tools = List.of(
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "search_issues",
-                                "description", "Search Jira issues using JQL query",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "jql", Map.of("type", "string", "description", "JQL query string"),
-                                                "maxResults", Map.of("type", "integer", "description", "Max results (default 50)")
-                                        ),
-                                        "required", List.of("jql")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "transition_issue",
-                                "description", "Change the status of a Jira issue",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "issueKey", Map.of("type", "string", "description", "Issue key like PROJ-123"),
-                                                "status", Map.of("type", "string", "description", "Target status name")
-                                        ),
-                                        "required", List.of("issueKey", "status")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "add_comment",
-                                "description", "Add a comment to a Jira issue",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "issueKey", Map.of("type", "string", "description", "Issue key"),
-                                                "comment", Map.of("type", "string", "description", "Comment text")
-                                        ),
-                                        "required", List.of("issueKey", "comment")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "update_duedate",
-                                "description", "Update the due date of a Jira issue",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "issueKey", Map.of("type", "string", "description", "Issue key"),
-                                                "dueDate", Map.of("type", "string", "description", "Due date YYYY-MM-DD")
-                                        ),
-                                        "required", List.of("issueKey", "dueDate")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "assign_issue",
-                                "description", "Assign a Jira issue to a user",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "issueKey", Map.of("type", "string", "description", "Issue key like PROJ-123"),
-                                                "assignee", Map.of("type", "string", "description", "Username or email of the assignee")
-                                        ),
-                                        "required", List.of("issueKey", "assignee")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "bulk_transition",
-                                "description", "Change status of multiple Jira issues matching a JQL filter",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "jql", Map.of("type", "string", "description", "JQL query to select issues (e.g., 'assignee = currentUser() AND issuetype = Bug AND status = To Do')"),
-                                                "status", Map.of("type", "string", "description", "Target status name (e.g., 'In Progress', 'Done')")
-                                        ),
-                                        "required", List.of("jql", "status")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "bulk_update_duedate",
-                                "description", "Update due date of multiple Jira issues matching a JQL filter",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "jql", Map.of("type", "string", "description", "JQL query to select issues"),
-                                                "dueDate", Map.of("type", "string", "description", "New due date in YYYY-MM-DD format")
-                                        ),
-                                        "required", List.of("jql", "dueDate")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "bulk_add_comment",
-                                "description", "Add a comment to multiple Jira issues matching a JQL filter",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "jql", Map.of("type", "string", "description", "JQL query to select issues"),
-                                                "comment", Map.of("type", "string", "description", "Comment text to add")
-                                        ),
-                                        "required", List.of("jql", "comment")
-                                )
-                        )
-                ),
-                Map.of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", "bulk_assign",
-                                "description", "Assign multiple Jira issues matching a JQL filter",
-                                "parameters", Map.of(
-                                        "type", "object",
-                                        "properties", Map.of(
-                                                "jql", Map.of("type", "string", "description", "JQL query to select issues"),
-                                                "assignee", Map.of("type", "string", "description", "Assignee - use 'me' for current user, or accountId")
-                                        ),
-                                        "required", List.of("jql", "assignee")
-                                )
-                        )
-                )
+                Map.of("type", "function", "function", Map.of("name", "search_issues", "description", "Search Jira issues using JQL query", "parameters", Map.of("type", "object", "properties", Map.of("jql", Map.of("type", "string", "description", "JQL query string"), "maxResults", Map.of("type", "integer", "description", "Max results (default 50)")), "required", List.of("jql")))),
+                Map.of("type", "function", "function", Map.of("name", "transition_issue", "description", "Change the status of a Jira issue", "parameters", Map.of("type", "object", "properties", Map.of("issueKey", Map.of("type", "string", "description", "Issue key like PROJ-123"), "status", Map.of("type", "string", "description", "Target status name")), "required", List.of("issueKey", "status")))),
+                Map.of("type", "function", "function", Map.of("name", "add_comment", "description", "Add a comment to a Jira issue", "parameters", Map.of("type", "object", "properties", Map.of("issueKey", Map.of("type", "string", "description", "Issue key"), "comment", Map.of("type", "string", "description", "Comment text")), "required", List.of("issueKey", "comment")))),
+                Map.of("type", "function", "function", Map.of("name", "update_duedate", "description", "Update the due date of a Jira issue", "parameters", Map.of("type", "object", "properties", Map.of("issueKey", Map.of("type", "string", "description", "Issue key"), "dueDate", Map.of("type", "string", "description", "Due date YYYY-MM-DD")), "required", List.of("issueKey", "dueDate")))),
+                Map.of("type", "function", "function", Map.of("name", "assign_issue", "description", "Assign a Jira issue to a user", "parameters", Map.of("type", "object", "properties", Map.of("issueKey", Map.of("type", "string", "description", "Issue key like PROJ-123"), "assignee", Map.of("type", "string", "description", "Username or email of the assignee")), "required", List.of("issueKey", "assignee")))),
+                Map.of("type", "function", "function", Map.of("name", "bulk_transition", "description", "Change status of multiple Jira issues matching a JQL filter", "parameters", Map.of("type", "object", "properties", Map.of("jql", Map.of("type", "string", "description", "JQL query to select issues"), "status", Map.of("type", "string", "description", "Target status name")), "required", List.of("jql", "status")))),
+                Map.of("type", "function", "function", Map.of("name", "bulk_update_duedate", "description", "Update due date of multiple Jira issues matching a JQL filter", "parameters", Map.of("type", "object", "properties", Map.of("jql", Map.of("type", "string", "description", "JQL query to select issues"), "dueDate", Map.of("type", "string", "description", "New due date in YYYY-MM-DD format")), "required", List.of("jql", "dueDate")))),
+                Map.of("type", "function", "function", Map.of("name", "bulk_add_comment", "description", "Add a comment to multiple Jira issues matching a JQL filter", "parameters", Map.of("type", "object", "properties", Map.of("jql", Map.of("type", "string", "description", "JQL query to select issues"), "comment", Map.of("type", "string", "description", "Comment text to add")), "required", List.of("jql", "comment")))),
+                Map.of("type", "function", "function", Map.of("name", "bulk_assign", "description", "Assign multiple Jira issues matching a JQL filter", "parameters", Map.of("type", "object", "properties", Map.of("jql", Map.of("type", "string", "description", "JQL query to select issues"), "assignee", Map.of("type", "string", "description", "Assignee - use 'me' for current user, or accountId")), "required", List.of("jql", "assignee"))))
         );
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", MODEL_NAME);
-        requestBody.put("messages", List.of(
-                Map.of(
-                        "role", "system",
-                        "content", systemPrompt
-                ),
-                Map.of(
-                        "role", "user",
-                        "content", query
-                )
-        ));
+        requestBody.put("messages", List.of(Map.of("role", "system", "content", systemPrompt), Map.of("role", "user", "content", query)));
         requestBody.put("tools", tools);
         requestBody.put("tool_choice", "auto");
         requestBody.put("temperature", 0.3);
@@ -260,7 +126,7 @@ public class GroqService {
             log.info("Groq API response received in {} ms", duration);
             log.debug("Groq API Response: {}", response);
 
-            String result = executeToolCall(response);
+            String result = executeToolCall(response, accessToken);
             
             log.info("===========================================");
             log.info("Final result: {}", result);
@@ -274,7 +140,7 @@ public class GroqService {
     }
 
     @SuppressWarnings("unchecked")
-    private String executeToolCall(Map<String, Object> response) {
+    private String executeToolCall(Map<String, Object> response, String accessToken) {
         try {
             log.debug("Parsing Groq response for tool calls...");
             
@@ -300,10 +166,7 @@ public class GroqService {
                             log.info("Raw Arguments: {}", arguments);
                             log.info("-------------------------------------------");
                             
-                            Map<String, Object> params = objectMapper.readValue(
-                                    arguments,
-                                    new TypeReference<Map<String, Object>>() {}
-                            );
+                            Map<String, Object> params = objectMapper.readValue(arguments, new TypeReference<Map<String, Object>>() {});
 
                             log.debug("Parsed parameters: {}", params);
                             log.info("Executing tool: {} with params: {}", toolName, params);
@@ -314,11 +177,9 @@ public class GroqService {
                             switch (toolName) {
                                 case "search_issues" -> {
                                     String jql = (String) params.get("jql");
-                                    Integer maxResults = params.containsKey("maxResults")
-                                            ? ((Number) params.get("maxResults")).intValue()
-                                            : 50;
+                                    Integer maxResults = params.containsKey("maxResults") ? ((Number) params.get("maxResults")).intValue() : 50;
                                     log.info("Executing search_issues - JQL: {}, maxResults: {}", jql, maxResults);
-                                    var issues = jiraApiService.searchIssues(jql, maxResults);
+                                    var issues = jiraApiService.searchIssues(jql, maxResults, accessToken);
                                     log.info("Search completed - Found {} issues", issues.size());
                                     result = formatIssuesResponse(issues);
                                 }
@@ -326,7 +187,7 @@ public class GroqService {
                                     String issueKey = (String) params.get("issueKey");
                                     String status = (String) params.get("status");
                                     log.info("Executing transition_issue - issueKey: {}, status: {}", issueKey, status);
-                                    boolean success = jiraApiService.transitionIssueByStatus(issueKey, status);
+                                    boolean success = jiraApiService.transitionIssueByStatus(issueKey, status, accessToken);
                                     log.info("Transition result: {}", success);
                                     result = success ? "Successfully moved " + issueKey + " to " + status : "Failed to transition issue";
                                 }
@@ -334,7 +195,7 @@ public class GroqService {
                                     String issueKey = (String) params.get("issueKey");
                                     String comment = (String) params.get("comment");
                                     log.info("Executing add_comment - issueKey: {}, comment: {}", issueKey, comment);
-                                    boolean success = jiraApiService.addComment(issueKey, comment);
+                                    boolean success = jiraApiService.addComment(issueKey, comment, accessToken);
                                     log.info("Add comment result: {}", success);
                                     result = success ? "Added comment to " + issueKey : "Failed to add comment";
                                 }
@@ -342,7 +203,7 @@ public class GroqService {
                                     String issueKey = (String) params.get("issueKey");
                                     String dueDate = (String) params.get("dueDate");
                                     log.info("Executing update_duedate - issueKey: {}, dueDate: {}", issueKey, dueDate);
-                                    boolean success = jiraApiService.updateDuedate(issueKey, dueDate);
+                                    boolean success = jiraApiService.updateDuedate(issueKey, dueDate, accessToken);
                                     log.info("Update due date result: {}", success);
                                     result = success ? "Updated due date of " + issueKey + " to " + dueDate : "Failed to update due date";
                                 }
@@ -350,15 +211,14 @@ public class GroqService {
                                     String issueKey = (String) params.get("issueKey");
                                     String assignee = (String) params.get("assignee");
                                     
-                                    if (assignee == null || assignee.toLowerCase().contains("me") || 
-                                        assignee.toLowerCase().contains("myself") || assignee.isEmpty()) {
-                                        String accountId = jiraApiService.getCurrentUserAccountId();
+                                    if (assignee == null || assignee.toLowerCase().contains("me") || assignee.toLowerCase().contains("myself") || assignee.isEmpty()) {
+                                        String accountId = jiraApiService.getCurrentUserAccountId(accessToken);
                                         log.info("Resolved 'me' to accountId: {}", accountId);
                                         assignee = accountId != null ? accountId : assignee;
                                     }
                                     
                                     log.info("Executing assign_issue - issueKey: {}, assignee: {}", issueKey, assignee);
-                                    boolean success = jiraApiService.assignIssue(issueKey, assignee);
+                                    boolean success = jiraApiService.assignIssue(issueKey, assignee, accessToken);
                                     log.info("Assign result: {}", success);
                                     result = success ? "Assigned " + issueKey + " to " + assignee : "Failed to assign issue";
                                 }
@@ -366,160 +226,85 @@ public class GroqService {
                                     String jql = (String) params.get("jql");
                                     String status = (String) params.get("status");
                                     log.info("Executing bulk_transition - JQL: {}, status: {}", jql, status);
-                                    
-                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100, accessToken);
                                     log.info("Found {} issues matching JQL", issues.size());
-                                    
                                     int successCount = 0;
                                     int failCount = 0;
                                     List<String> failedIssues = new ArrayList<>();
-                                    
                                     for (JiraIssueDto issue : issues) {
                                         try {
-                                            boolean success = jiraApiService.transitionIssueByStatus(issue.getKey(), status);
-                                            if (success) successCount++;
-                                            else {
-                                                failCount++;
-                                                failedIssues.add(issue.getKey());
-                                            }
-                                        } catch (Exception e) {
-                                            failCount++;
-                                            failedIssues.add(issue.getKey());
-                                            log.warn("Failed to transition {}: {}", issue.getKey(), e.getMessage());
-                                        }
+                                            boolean success = jiraApiService.transitionIssueByStatus(issue.getKey(), status, accessToken);
+                                            if (success) successCount++; else { failCount++; failedIssues.add(issue.getKey()); }
+                                        } catch (Exception e) { failCount++; failedIssues.add(issue.getKey()); log.warn("Failed to transition {}: {}", issue.getKey(), e.getMessage()); }
                                     }
-                                    
-                                    if (failCount == 0) {
-                                        result = String.format("Successfully transitioned %d issues to '%s'", successCount, status);
-                                    } else {
-                                        result = String.format("Transitioned %d issues to '%s'. Failed: %d (%s)", 
-                                                successCount, status, failCount, String.join(", ", failedIssues));
-                                    }
+                                    result = failCount == 0 ? String.format("Successfully transitioned %d issues to '%s'", successCount, status) : String.format("Transitioned %d issues to '%s'. Failed: %d (%s)", successCount, status, failCount, String.join(", ", failedIssues));
                                     log.info("Bulk transition completed - {}", result);
                                 }
                                 case "bulk_update_duedate" -> {
                                     String jql = (String) params.get("jql");
                                     String dueDate = (String) params.get("dueDate");
                                     log.info("Executing bulk_update_duedate - JQL: {}, dueDate: {}", jql, dueDate);
-                                    
-                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100, accessToken);
                                     log.info("Found {} issues matching JQL", issues.size());
-                                    
                                     int successCount = 0;
                                     int failCount = 0;
                                     List<String> failedIssues = new ArrayList<>();
-                                    
                                     for (JiraIssueDto issue : issues) {
                                         try {
-                                            boolean success = jiraApiService.updateDuedate(issue.getKey(), dueDate);
-                                            if (success) successCount++;
-                                            else {
-                                                failCount++;
-                                                failedIssues.add(issue.getKey());
-                                            }
-                                        } catch (Exception e) {
-                                            failCount++;
-                                            failedIssues.add(issue.getKey());
-                                            log.warn("Failed to update due date for {}: {}", issue.getKey(), e.getMessage());
-                                        }
+                                            boolean success = jiraApiService.updateDuedate(issue.getKey(), dueDate, accessToken);
+                                            if (success) successCount++; else { failCount++; failedIssues.add(issue.getKey()); }
+                                        } catch (Exception e) { failCount++; failedIssues.add(issue.getKey()); log.warn("Failed to update due date for {}: {}", issue.getKey(), e.getMessage()); }
                                     }
-                                    
-                                    if (failCount == 0) {
-                                        result = String.format("Successfully updated due date to %s for %d issues", dueDate, successCount);
-                                    } else {
-                                        result = String.format("Updated due date for %d issues to %s. Failed: %d (%s)", 
-                                                successCount, dueDate, failCount, String.join(", ", failedIssues));
-                                    }
+                                    result = failCount == 0 ? String.format("Successfully updated due date to %s for %d issues", dueDate, successCount) : String.format("Updated due date for %d issues to %s. Failed: %d (%s)", successCount, dueDate, failCount, String.join(", ", failedIssues));
                                     log.info("Bulk update due date completed - {}", result);
                                 }
                                 case "bulk_add_comment" -> {
                                     String jql = (String) params.get("jql");
                                     String comment = (String) params.get("comment");
                                     log.info("Executing bulk_add_comment - JQL: {}, comment: {}", jql, comment);
-                                    
-                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100, accessToken);
                                     log.info("Found {} issues matching JQL", issues.size());
-                                    
                                     int successCount = 0;
                                     int failCount = 0;
                                     List<String> failedIssues = new ArrayList<>();
-                                    
                                     for (JiraIssueDto issue : issues) {
                                         try {
-                                            boolean success = jiraApiService.addComment(issue.getKey(), comment);
-                                            if (success) successCount++;
-                                            else {
-                                                failCount++;
-                                                failedIssues.add(issue.getKey());
-                                            }
-                                        } catch (Exception e) {
-                                            failCount++;
-                                            failedIssues.add(issue.getKey());
-                                            log.warn("Failed to add comment to {}: {}", issue.getKey(), e.getMessage());
-                                        }
+                                            boolean success = jiraApiService.addComment(issue.getKey(), comment, accessToken);
+                                            if (success) successCount++; else { failCount++; failedIssues.add(issue.getKey()); }
+                                        } catch (Exception e) { failCount++; failedIssues.add(issue.getKey()); log.warn("Failed to add comment to {}: {}", issue.getKey(), e.getMessage()); }
                                     }
-                                    
-                                    if (failCount == 0) {
-                                        result = String.format("Successfully added comment to %d issues", successCount);
-                                    } else {
-                                        result = String.format("Added comment to %d issues. Failed: %d (%s)", 
-                                                successCount, failCount, String.join(", ", failedIssues));
-                                    }
+                                    result = failCount == 0 ? String.format("Successfully added comment to %d issues", successCount) : String.format("Added comment to %d issues. Failed: %d (%s)", successCount, failCount, String.join(", ", failedIssues));
                                     log.info("Bulk add comment completed - {}", result);
                                 }
                                 case "bulk_assign" -> {
                                     String jql = (String) params.get("jql");
                                     String assignee = (String) params.get("assignee");
-                                    
-                                    if (assignee != null && (assignee.toLowerCase().contains("me") || 
-                                        assignee.toLowerCase().contains("myself") || assignee.isEmpty())) {
-                                        String accountId = jiraApiService.getCurrentUserAccountId();
+                                    if (assignee != null && (assignee.toLowerCase().contains("me") || assignee.toLowerCase().contains("myself") || assignee.isEmpty())) {
+                                        String accountId = jiraApiService.getCurrentUserAccountId(accessToken);
                                         log.info("Resolved 'me' to accountId: {}", accountId);
                                         assignee = accountId != null ? accountId : assignee;
                                     }
-                                    
                                     log.info("Executing bulk_assign - JQL: {}, assignee: {}", jql, assignee);
-                                    
-                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100);
+                                    List<JiraIssueDto> issues = jiraApiService.searchIssues(jql, 100, accessToken);
                                     log.info("Found {} issues matching JQL", issues.size());
-                                    
                                     int successCount = 0;
                                     int failCount = 0;
                                     List<String> failedIssues = new ArrayList<>();
-                                    
                                     for (JiraIssueDto issue : issues) {
                                         try {
-                                            boolean success = jiraApiService.assignIssue(issue.getKey(), assignee);
-                                            if (success) successCount++;
-                                            else {
-                                                failCount++;
-                                                failedIssues.add(issue.getKey());
-                                            }
-                                        } catch (Exception e) {
-                                            failCount++;
-                                            failedIssues.add(issue.getKey());
-                                            log.warn("Failed to assign {}: {}", issue.getKey(), e.getMessage());
-                                        }
+                                            boolean success = jiraApiService.assignIssue(issue.getKey(), assignee, accessToken);
+                                            if (success) successCount++; else { failCount++; failedIssues.add(issue.getKey()); }
+                                        } catch (Exception e) { failCount++; failedIssues.add(issue.getKey()); log.warn("Failed to assign {}: {}", issue.getKey(), e.getMessage()); }
                                     }
-                                    
-                                    if (failCount == 0) {
-                                        result = String.format("Successfully assigned %d issues to %s", successCount, assignee);
-                                    } else {
-                                        result = String.format("Assigned %d issues to %s. Failed: %d (%s)", 
-                                                successCount, assignee, failCount, String.join(", ", failedIssues));
-                                    }
+                                    result = failCount == 0 ? String.format("Successfully assigned %d issues to %s", successCount, assignee) : String.format("Assigned %d issues to %s. Failed: %d (%s)", successCount, assignee, failCount, String.join(", ", failedIssues));
                                     log.info("Bulk assign completed - {}", result);
                                 }
-                                default -> {
-                                    log.warn("Unknown tool called: {}", toolName);
-                                    result = "Unknown tool: " + toolName;
-                                }
+                                default -> { log.warn("Unknown tool called: {}", toolName); result = "Unknown tool: " + toolName; }
                             };
                             
                             long duration = System.currentTimeMillis() - startTime;
                             log.info("Tool execution completed in {} ms", duration);
                             log.debug("Tool result: {}", result);
-                            
                             return result;
                         }
                     }
@@ -539,118 +324,19 @@ public class GroqService {
     }
 
     private String formatIssuesResponse(List<?> issues) {
-        if (issues.isEmpty()) {
-            log.debug("No issues found, returning empty response");
-            return "No issues found matching your query.";
-        }
-
-        log.debug("Formatting response for {} issues", issues.size());
+        if (issues.isEmpty()) { return "No issues found matching your query."; }
         
         StringBuilder sb = new StringBuilder();
         sb.append("Found ").append(issues.size()).append(" issue(s):\n\n");
-
         for (Object issue : issues) {
             if (issue instanceof JiraIssueDto dto) {
                 sb.append("- ").append(dto.getKey()).append(": ").append(dto.getSummary()).append("\n");
                 sb.append("  Status: ").append(dto.getStatus()).append("\n");
                 sb.append("  Type: ").append(dto.getIssueType()).append("\n");
-                if (dto.getDueDate() != null) {
-                    sb.append("  Due: ").append(dto.getDueDate()).append("\n");
-                }
+                if (dto.getDueDate() != null) sb.append("  Due: ").append(dto.getDueDate()).append("\n");
                 sb.append("\n");
             }
         }
-        
-        log.debug("Formatted issues response:\n{}", sb);
         return sb.toString();
-    }
-
-    public String generateJql(String naturalLanguageQuery) {
-        log.info("Generating JQL for query: {}", naturalLanguageQuery);
-        
-        String prompt = buildJqlPrompt(naturalLanguageQuery);
-
-        Map<String, Object> requestBody = Map.of(
-                "model", MODEL_NAME,
-                "messages", List.of(
-                        Map.of(
-                                "role", "user",
-                                "content", prompt
-                        )
-                ),
-                "temperature", 0.3,
-                "max_tokens", 256
-        );
-
-        try {
-            log.debug("Calling Groq API for JQL generation...");
-            long startTime = System.currentTimeMillis();
-            
-            Map<String, Object> response = webClient.post()
-                    .bodyValue(requestBody)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block(Duration.ofSeconds(30));
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("JQL generation completed in {} ms", duration);
-            log.debug("Groq JQL Response: {}", response);
-
-            String jql = extractJqlFromResponse(response);
-            log.info("Generated JQL: {}", jql);
-            
-            return jql;
-        } catch (Exception e) {
-            log.error("Error generating JQL: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to generate JQL from Groq: " + e.getMessage());
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private String extractJqlFromResponse(Map<String, Object> response) {
-        try {
-            if (response != null && response.containsKey("choices")) {
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
-                if (!choices.isEmpty()) {
-                    Map<String, Object> choice = choices.get(0);
-                    Map<String, Object> message = (Map<String, Object>) choice.get("message");
-                    String content = message.get("content").toString().trim();
-                    log.debug("Extracted JQL content: {}", content);
-                    return content;
-                }
-            }
-            log.error("Invalid response structure for JQL extraction");
-            throw new RuntimeException("Invalid response from Groq API");
-        } catch (Exception e) {
-            log.error("Error extracting JQL: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to parse Groq response");
-        }
-    }
-
-    private String buildJqlPrompt(String query) {
-        return """
-            You are a Jira JQL (Jira Query Language) expert. Convert the following natural language query into a valid JQL query.
-            
-            IMPORTANT RULES:
-            1. Always include "assignee = currentUser()" to filter by the current user
-            2. Use proper JQL syntax (field = value)
-            3. For issue types, use: issuetype = Story, issuetype = Bug, issuetype = Task, etc.
-            4. For status, use: status = "To Do", status = "In Progress", status = Done, etc.
-            5. For dates, use: duedate <= "2026-03-27", duedate >= startOfWeek(), duedate <= endOfWeek(), etc.
-            6. For projects, use: project = PROJECTNAME
-            7. For summaries containing spaces, use: summary ~ "search term"
-            8. Combine conditions with AND/OR
-            
-            EXAMPLES:
-            - "my bugs due this week" -> assignee = currentUser() AND issuetype = Bug AND duedate <= endOfWeek()
-            - "all stories in progress" -> assignee = currentUser() AND issuetype = Story AND status = "In Progress"
-            - "completed tasks" -> assignee = currentUser() AND issuetype = Task AND status = Done
-            - "issues in SCRUM project" -> project = SCRUM AND assignee = currentUser()
-            
-            Convert this query:
-            """ + query + """
-            
-            Return ONLY the JQL query, nothing else. No quotes, no explanation, just the JQL.
-            """;
     }
 }

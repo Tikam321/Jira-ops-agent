@@ -11,6 +11,16 @@ spring:
   h2:
     console:
       enabled: true
+  security:
+    oauth2:
+      client:
+        registration:
+          jira:
+            client-id: test-client-id
+            client-secret: test-client-secret
+        provider:
+          jira:
+            issuer-uri: https://auth.atlassian.com
 
 jira:
   base-url: https://test.atlassian.net
