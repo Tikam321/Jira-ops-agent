@@ -8,6 +8,13 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
+  # Store sessions in DB instead of memory to fix "authorization_request_not_found"
+  session:
+    store-type: jdbc
+    jdbc:
+      initialize-schema: always
+      table-name: SPRING_SESSION
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -22,8 +29,8 @@ spring:
       client:
         registration:
           jira:
-            client-id: yi9E2sfsfBSmzJNI03AXC06h3r4GOJJF
-            client-secret: ATOAhDF4tiy33AHjSzl6MwRwG5kad1vUK0GoOX6j1nOmybluR-0P7asXXQI1tAjgH1TJE0E45D3D
+            client-id: ${JIRA_OAUTH_CLIENT_ID:yi9E2sfsfBSmzJNI03AXC06h3r4GOJJF}
+            client-secret: ${JIRA_OAUTH_CLIENT_SECRET:ATOAhDF4tiy33AHjSzl6MwRwG5kad1vUK0GoOX6j1nOmybluR-0P7asXXQI1tAjgH1TJE0E45D3D}
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             scope: read:jira-user, read:jira-work, write:jira-work, offline_access, read:me
@@ -36,17 +43,27 @@ spring:
             user-info-uri: https://api.atlassian.com/me
             user-name-attribute: account_id
 
+# Configure cookies for Cross-Site deployment (Frontend on different domain)
+server:
+  port: ${SERVER_PORT:8081}
+  use-forwarded-headers: true
+  servlet:
+    session:
+      cookie:
+        name: JIRAOPS_SESSION
+        http-only: true
+        secure: true
+        same-site: none  # Critical for cross-domain redirects
+        max-age: 1d
+
 jira:
   base-url: https://api.atlassian.com
 
 groq:
-  api-key: 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
-
-server:
-  port: ${SERVER_PORT:8081}
+  api-key: ${GROQ_API_KEY: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}
 
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost}
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
 
 logging:
   level:
@@ -59,3 +76,9 @@ logging:
     reactor.netty: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

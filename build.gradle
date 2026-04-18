@@ -31,6 +31,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    
+    // Spring Session (Fixes OAuth issues on Render)
+    implementation 'org.springframework.session:spring-session-jdbc'
     
     // Database
     runtimeOnly 'org.postgresql:postgresql'
@@ -70,10 +74,6 @@ jib {
         image = 'eclipse-temurin:17-jre'
         platforms {
             platform {
-                architecture = 'arm64'
-                os = 'linux'
-            }
-            platform {
                 architecture = 'amd64'
                 os = 'linux'
             }
@@ -81,7 +81,7 @@ jib {
     }
     to {
         image = 'docker.io/tikam321/jira-ops-agent'
-        tags = ['latest', "${version}"]
+        tags = ['latest', "${version}", "amd64"]
     }
     container {
         jvmFlags = ['-Xms512m', '-Xmx1024m', '-XX:+UseG1GC']

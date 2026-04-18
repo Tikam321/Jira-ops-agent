@@ -24,9 +24,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = useCallback(async (): Promise<boolean> => {
     try {
+         if (window.location.pathname.includes('/login')) {
+                 return false; // Skip auth check on login page                                                                                                            ▼ Modified Files
+         }
       console.log('Checking auth...');
-      console.log('Backend URL:', config.apiBaseUrl);
-      const response = await backendApi.get('/v1/auth/me');
+      // config.apiBaseUrl already includes /api/v1
+      console.log("calling the authme api");
+      
+      const response = await backendApi.get('/auth/me');
       console.log('Auth check response:', response);
       if (response.status === 200) {
         setIsAuthenticated(true);
@@ -35,7 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.log('Auth check error:', error);
-      console.log('Auth check error status:', error.response?.status);
       if (error.response?.status === 401) {
         setIsAuthenticated(false);
         setUser(null);
@@ -58,21 +62,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsAuthenticated(false);
     setUser(null);
-    window.location.href = '/login';
+    // Clear session and redirect to frontend login page
+    window.location.href = config.frontendUrl + '/login?logout=true';
   };
 
   useEffect(() => {
     const initAuth = async () => {
       setIsLoading(true);
       
-      // Check if we just returned from OAuth redirect
       const urlParams = new URLSearchParams(window.location.search);
-      const oauthSuccess = urlParams.has('code') || urlParams.has('state');
+      const hasCode = urlParams.has('code');
+      const hasState = urlParams.has('state');
+      
+      console.log('OAuth params detected:', { hasCode, hasState });
+      
+      if (hasCode || hasState) {
+        console.log('OAuth callback detected, waiting for backend to process...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
       
       await checkAuth();
       
-      // If we just came back from OAuth, reload to clear URL params and refresh state
-      if (oauthSuccess) {
+      if (hasCode || hasState) {
         window.history.replaceState({}, '', window.location.pathname);
       }
       
@@ -80,16 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     initAuth();
-    
-    const handleFocus = () => {
-      checkAuth();
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
   }, [checkAuth]);
 
   return (

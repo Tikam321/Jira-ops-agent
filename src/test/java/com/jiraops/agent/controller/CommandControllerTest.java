@@ -23,14 +23,14 @@ class CommandControllerTest {
 
     @Test
     void shouldRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/api/v1/commands"))
+        mockMvc.perform(get("/v1/commands"))
             .andExpect(status().is3xxRedirection());
     }
 
     @Test
     @WithMockUser(username = "testuser", roles = {"USER"})
     void shouldReturnCommandsForAuthenticatedUser() throws Exception {
-        mockMvc.perform(get("/api/v1/commands"))
+        mockMvc.perform(get("/v1/commands"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$.length()").value(4));
@@ -39,7 +39,7 @@ class CommandControllerTest {
     @Test
     @WithMockUser(username = "testuser", roles = {"USER"})
     void shouldReturnSpecificCommand() throws Exception {
-        mockMvc.perform(get("/api/v1/commands/CMD001"))
+        mockMvc.perform(get("/v1/commands/CMD001"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("CMD001"))
             .andExpect(jsonPath("$.name").value("Fetch My Issues"));
@@ -48,7 +48,7 @@ class CommandControllerTest {
     @Test
     @WithMockUser(username = "testuser", roles = {"USER"})
     void shouldReturn404ForInvalidCommand() throws Exception {
-        mockMvc.perform(get("/api/v1/commands/INVALID"))
+        mockMvc.perform(get("/v1/commands/INVALID"))
             .andExpect(status().isNotFound());
     }
 }

@@ -7,10 +7,14 @@ import com.jiraops.agent.service.CommandTemplateService;
 import com.jiraops.agent.service.ExecutionService;
 import com.jiraops.agent.service.GroqMcpService;
 import com.jiraops.agent.service.NaturalLanguageService;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
@@ -23,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/v1")
 @RequiredArgsConstructor
 @Slf4j
 public class CommandController {
@@ -33,6 +37,9 @@ public class CommandController {
     private final NaturalLanguageService naturalLanguageService;
     private final GroqMcpService groqMcpService;
     private final OAuth2AuthorizedClientService authorizedClientService;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     private String getAccessToken(OAuth2User oauth2User) {
         if (oauth2User == null) {
@@ -202,5 +209,19 @@ public class CommandController {
         response.put("sessionId", session.getId());
         response.put("sessionCreationTime", session.getCreationTime());
         return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            request.logout();  // Invalidates session + clears auth
+        } catch (ServletException e) {
+            log.error("Logout error: {}", e.getMessage());
+        }
+
+        // Redirect to login page
+        response.setHeader("Location", frontendUrl + "/login?logout=true");
+        return ResponseEntity.status(302).build();
     }
 }

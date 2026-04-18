@@ -76,7 +76,8 @@ The frontend Docker image uses multi-stage build with nginx. Build arguments are
 |---------|---------|
 | `VITE_API_BASE_URL` | API endpoint for frontend (used in JS code) |
 | `VITE_FRONTEND_URL` | Frontend URL (used in JS code) |
-| `BACKEND_URL` | Backend URL for nginx proxy (used in nginx.conf) |
+| `BACKEND_URL` | Full URL of backend for nginx proxy |
+| `BACKEND_HOST` | Hostname of backend (required for Render) |
 
 #### Local Testing (with local backend)
 
@@ -85,9 +86,10 @@ cd frontend
 
 # Build image with local backend URL
 docker build -t tikam321/jira-ops-frontend:local \
-  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_BASE_URL=/api/v1 \
   --build-arg VITE_FRONTEND_URL=http://localhost \
-  --build-arg BACKEND_URL=http://localhost:8081 .
+  --build-arg BACKEND_URL=http://localhost:8081 \
+  --build-arg BACKEND_HOST=localhost .
 
 # Run container
 docker run -p 80:80 tikam321/jira-ops-frontend:local
@@ -100,9 +102,10 @@ cd frontend
 
 # Build image with backend service name (Docker Compose)
 docker build -t tikam321/jira-ops-frontend:compose \
-  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_BASE_URL=/api/v1 \
   --build-arg VITE_FRONTEND_URL=http://localhost \
-  --build-arg BACKEND_URL=http://backend:8081 .
+  --build-arg BACKEND_URL=http://backend:8081 \
+  --build-arg BACKEND_HOST=backend .
 ```
 
 #### Production Build (for Render deployment)
@@ -110,11 +113,12 @@ docker build -t tikam321/jira-ops-frontend:compose \
 ```bash
 cd frontend
 
-# Build with production URLs
+# Build with production URLs (Corrected for Render)
 docker build -t tikam321/jira-ops-frontend:latest \
-  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_BASE_URL=/api/v1 \
   --build-arg VITE_FRONTEND_URL=https://jira-ops-frontend.onrender.com \
-  --build-arg BACKEND_URL=https://jira-ops-backend.onrender.com .
+  --build-arg BACKEND_URL=https://jira-ops-backend.onrender.com \
+  --build-arg BACKEND_HOST=jira-ops-backend.onrender.com .
 
 # Push to Docker Hub
 docker push tikam321/jira-ops-frontend:latest
@@ -128,9 +132,10 @@ docker push tikam321/jira-ops-frontend:latest
 
 # Push with version tag
 docker build -t tikam321/jira-ops-frontend:latest \
-  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_BASE_URL=/api/v1 \
   --build-arg VITE_FRONTEND_URL=https://your-domain.com \
-  --build-arg BACKEND_URL=https://backend-domain.com .
+  --build-arg BACKEND_URL=https://backend-domain.com \
+  --build-arg BACKEND_HOST=backend-domain.com .
 
 docker push tikam321/jira-ops-frontend:latest
 docker push tikam321/jira-ops-frontend:1.0.0
@@ -143,30 +148,6 @@ docker push tikam321/jira-ops-frontend:1.0.0
 - **Multi-Stage:** Node (build) → Alpine (nginx config) → nginx (final)
 - **Size:** ~62MB
 - **Port:** 80
-
-### How it Works
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ Stage 1: builder (node:20-alpine)                      │
-│ - Installs npm dependencies                              │
-│ - Runs 'npm run build' with VITE_* env vars            │
-│ - Output: /app/dist (static files)                       │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│ Stage 2: nginx-config (alpine:3.19)                      │
-│ - Runs envsubst to replace ${BACKEND_URL}                │
-│ - Creates nginx.conf with actual backend URL             │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│ Stage 3: final (nginx:alpine)                           │
-│ - Copies nginx.conf from stage 2                         │
-│ - Copies static files from stage 1                       │
-│ - Starts nginx                                          │
-└─────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -229,15 +210,17 @@ npm run dev
 
 # Production build (local testing)
 docker build -t tikam321/jira-ops-frontend:local \
-  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_BASE_URL=/api/v1 \
   --build-arg VITE_FRONTEND_URL=http://localhost \
-  --build-arg BACKEND_URL=http://localhost:8081 .
+  --build-arg BACKEND_URL=http://localhost:8081 \
+  --build-arg BACKEND_HOST=localhost .
 
 # Production build (for Render)
 docker build -t tikam321/jira-ops-frontend:latest \
-  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_BASE_URL=/api/v1 \
   --build-arg VITE_FRONTEND_URL=https://jira-ops-frontend.onrender.com \
-  --build-arg BACKEND_URL=https://jira-ops-backend.onrender.com .
+  --build-arg BACKEND_URL=https://jira-ops-backend.onrender.com \
+  --build-arg BACKEND_HOST=jira-ops-backend.onrender.com .
 
 # Docker push
 docker push tikam321/jira-ops-frontend:latest
