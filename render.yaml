@@ -1,0 +1,35 @@
+# render.yaml - Deploy Backend and Frontend together
+
+services:
+  - name: jira-ops-backend
+    image:
+      url: docker.io/tikam321/jira-ops-agent:amd64
+    region: singapore
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: FRONTEND_URL
+        value: https://jira-ops-frontend.onrender.com
+      - key: JIRA_OAUTH_CLIENT_ID
+        sync: false
+      - key: JIRA_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+
+  - name: jira-ops-frontend
+    image:
+      url: docker.io/tikam321/jira-ops-frontend:amd64-v2
+    region: singapore
+    plan: free
+    healthCheckPath: /
+    routes:
+      - path: /
