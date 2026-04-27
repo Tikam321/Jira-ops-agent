@@ -7,6 +7,7 @@ pipeline {
         ECR_REPO = '634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent'
         EC2_HOST = 'ec2-13-201-97-38.ap-south-1.compute.amazonaws.com'
     }
+
     stages {
         stage('Checkout') {
             steps {
@@ -21,13 +22,6 @@ pipeline {
                 sh './gradlew clean build -x test'
             }
         }
-
-//         stage('Test') {
-//             steps {
-//                 echo 'Running tests...'
-//                 sh './gradlew test'
-//             }
-//         }
 
         stage('Build & Push to ECR with Jib') {
             steps {
