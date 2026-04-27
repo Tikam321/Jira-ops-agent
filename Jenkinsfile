@@ -52,7 +52,8 @@ pipeline {
                     string(credentialsId: 'groq-api-key', variable: 'GROQ_API_KEY'),
                     string(credentialsId: 'db-url', variable: 'DB_URL'),
                     string(credentialsId: 'db-user', variable: 'DB_USER'),
-                    string(credentialsId: 'db-pass', variable: 'DB_PASS')
+                    string(credentialsId: 'db-pass', variable: 'DB_PASS'),
+                    string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL')
                 ]) {
                     sshagent(credentials: ['ec2ssh']) {
                         sh '''
@@ -73,6 +74,7 @@ pipeline {
                                     -e SPRING_DATASOURCE_URL=${DB_URL} \
                                     -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
                                     -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
+                                    -e FRONTEND_URL=${FRONTEND_URL} \
                                     ${ECR_REPO}:${BUILD_NUMBER}
                             EOF
                         '''
