@@ -9,14 +9,14 @@ group = 'com.jiraops'
 version = '1.0.0'
 
 java {
-    sourceCompatibility = '17'
-    targetCompatibility = '17'
+    sourceCompatibility = '21'
+    targetCompatibility = '21'
 }
 
 plugins.withType(JavaPlugin) {
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
 }
@@ -71,7 +71,7 @@ tasks.named('test') {
 
 jib {
     from {
-        image = 'eclipse-temurin:17-jre'
+        image = 'eclipse-temurin:21-jre'
         platforms {
             platform {
                 architecture = 'amd64'
