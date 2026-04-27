@@ -57,12 +57,15 @@ pipeline {
                     string(credentialsId: 'ec2-key', variable: 'EC2_SSH_KEY')
                 ]) {
                     sh '''
-                        # Write SSH key to temp file
-                        echo "${EC2_SSH_KEY}" > /tmp/ec2_key.pem
+                        # Write SSH key using printf to preserve format
+                        printf '%s\\n' "${EC2_SSH_KEY}" > /tmp/ec2_key.pem
                         chmod 600 /tmp/ec2_key.pem
 
+                        # Verify key was written correctly
+                        head -n1 /tmp/ec2_key.pem
+
                         # Deploy to EC2 - login to ECR on remote
-                        ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
+                        ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
                             # Login to ECR on remote
                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
 
