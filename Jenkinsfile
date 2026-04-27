@@ -50,18 +50,12 @@ pipeline {
                     string(credentialsId: 'jira-client-id', variable: 'JIRA_CLIENT_ID'),
                     string(credentialsId: 'jira-client-secret', variable: 'JIRA_CLIENT_SECRET'),
                     string(credentialsId: 'groq-api-key', variable: 'GROQ_API_KEY'),
-                    string(credentialsId: 'db-creds', variable: 'DB_CREDS')
+                    string(credentialsId: 'db-url', variable: 'DB_URL'),
+                    string(credentialsId: 'db-user', variable: 'DB_USER'),
+                    string(credentialsId: 'db-pass', variable: 'DB_PASS')
                 ]) {
                     sshagent(credentials: ['ec2ssh']) {
                         sh '''
-                            # DB creds format: username::password@host:port/dbname
-                            # Using :: as delimiter so password can contain : and @
-                            # Example: jira_ops::MyP@ss@123@db.host.com:5432/jira_ops
-
-                            DB_USER=$(echo "$DB_CREDS" | awk -F'::' '{print $1}')
-                            DB_PASS=$(echo "$DB_CREDS" | awk -F'::' '{print $2}' | awk -F'@' '{print $1}')
-                            DB_CONNECTION=$(echo "$DB_CREDS" | awk -F'@' '{print $2}')
-
                             aws ecr get-login-password --region ${REGION} | \
                             docker login --username AWS --password-stdin ${ECR_REPO}
 
@@ -76,7 +70,7 @@ pipeline {
                                     -e JIRA_OAUTH_CLIENT_ID=${JIRA_CLIENT_ID} \
                                     -e JIRA_OAUTH_CLIENT_SECRET=${JIRA_CLIENT_SECRET} \
                                     -e GROQ_API_KEY=${GROQ_API_KEY} \
-                                    -e SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_CONNECTION} \
+                                    -e SPRING_DATASOURCE_URL=${DB_URL} \
                                     -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
                                     -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
                                     ${ECR_REPO}:${BUILD_NUMBER}
