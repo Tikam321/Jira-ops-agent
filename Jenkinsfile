@@ -54,15 +54,11 @@ pipeline {
                     string(credentialsId: 'db-user', variable: 'DB_USER'),
                     string(credentialsId: 'db-pass', variable: 'DB_PASS'),
                     string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL'),
-                    sshUserPrivateKey(
-                        credentialsId: 'ec2ssh',
-                        usernameVariable: 'SSH_USER',
-                        privateKeyVariable: 'SSH_PRIVATE_KEY'
-                    )
+                    string(credentialsId: 'ec2-key', variable: 'EC2_SSH_KEY')
                 ]) {
                     sh '''
                         # Write SSH key to temp file
-                        echo "$SSH_PRIVATE_KEY" > /tmp/ec2_key.pem
+                        echo "${EC2_SSH_KEY}" > /tmp/ec2_key.pem
                         chmod 600 /tmp/ec2_key.pem
 
                         # Login to ECR
@@ -70,7 +66,7 @@ pipeline {
                         docker login --username AWS --password-stdin ${ECR_REPO}
 
                         # Deploy to EC2
-                        ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
                             docker stop jira-ops-agent || true
                             docker rm jira-ops-agent || true
                             docker pull ${ECR_REPO}:${BUILD_NUMBER}
@@ -86,7 +82,7 @@ pipeline {
                                 -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
                                 -e FRONTEND_URL=${FRONTEND_URL} \
                                 ${ECR_REPO}:${BUILD_NUMBER}
-                        EOF
+                        ENDSSH
 
                         rm -f /tmp/ec2_key.pem
                     '''
