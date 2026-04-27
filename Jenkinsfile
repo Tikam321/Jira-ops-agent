@@ -57,15 +57,10 @@ pipeline {
                     string(credentialsId: 'ec2-key-b64', variable: 'EC2_KEY_B64')
                 ]) {
                     sh '''
-                        # Decode and write key
-                        echo "${EC2_KEY_B64}" > /tmp/key_b64.txt
-                        base64 -d -i /tmp/key_b64.txt -o /tmp/ec2_key.pem
-                        rm /tmp/key_b64.txt
+                        # Decode base64 and write key
+                        echo "${EC2_KEY_B64}" | base64 -d > /tmp/ec2_key.pem
                         chmod 600 /tmp/ec2_key.pem
 
-                        # Test connection first
-                        ssh -v -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=10 -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} "echo SSH OK" || echo "SSH FAILED - checking key..."
-                        
                         # Deploy to EC2
                         ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
