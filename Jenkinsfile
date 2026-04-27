@@ -4,10 +4,9 @@ pipeline {
     environment {
         JAVA_HOME = '/usr/lib/jvm/java-21-openjdk-arm64'
         REGION = 'ap-south-1'
-        ECR_REPO = '123456789.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent'
-        EC2_HOST = 'ec2-host.compute.amazonaws.com'
+        ECR_REPO = '634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent'
+        EC2_HOST = 'ec2-13-201-97-38.ap-south-1.compute.amazonaws.com'
     }
-
     stages {
         stage('Checkout') {
             steps {
