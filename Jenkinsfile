@@ -54,11 +54,13 @@ pipeline {
                     string(credentialsId: 'db-user', variable: 'DB_USER'),
                     string(credentialsId: 'db-pass', variable: 'DB_PASS'),
                     string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL'),
-                    string(credentialsId: 'ec2-key-b64', variable: 'EC2_KEY_B64')
+                    string(credentialsId: 'ec2-key', variable: 'SSH_KEY')
                 ]) {
                     sh '''
-                        # Decode base64 and write key
-                        echo "${EC2_KEY_B64}" | base64 -d > /tmp/ec2_key.pem
+                        # Write key directly
+                        cat > /tmp/ec2_key.pem << 'KEYEOF'
+'${SSH_KEY}'
+KEYEOF
                         chmod 600 /tmp/ec2_key.pem
 
                         # Deploy to EC2
