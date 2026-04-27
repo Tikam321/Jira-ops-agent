@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        jdk 'jdk21'
+    }
+
     environment {
         REGION = 'ap-south-1'
         ECR_REPO = '123456789.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent'
