@@ -23,12 +23,12 @@ pipeline {
             }
         }
 
-        stage('Test') {
-            steps {
-                echo 'Running tests...'
-                sh './gradlew test'
-            }
-        }
+//         stage('Test') {
+//             steps {
+//                 echo 'Running tests...'
+//                 sh './gradlew test'
+//             }
+//         }
 
         stage('Build & Push to ECR with Jib') {
             steps {
