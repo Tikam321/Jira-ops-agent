@@ -57,20 +57,22 @@ pipeline {
                     string(credentialsId: 'ec2-key-b64', variable: 'EC2_KEY_B64')
                 ]) {
                     sh '''
-                        # Decode base64 key and write to file
-                        echo "${EC2_KEY_B64}" | base64 -d > /tmp/ec2_key.pem
+                        # Decode and write key
+                        echo "${EC2_KEY_B64}" > /tmp/key_b64.txt
+                        base64 -d -i /tmp/key_b64.txt -o /tmp/ec2_key.pem
+                        rm /tmp/key_b64.txt
                         chmod 600 /tmp/ec2_key.pem
 
-                        # Deploy to EC2 - login to ECR on remote
-                        ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
+                        # Test connection first
+                        ssh -v -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=10 -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} "echo SSH OK" || echo "SSH FAILED - checking key..."
+                        
+                        # Deploy to EC2
+                        ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
-
                             docker stop jira-ops-agent || true
                             docker rm jira-ops-agent || true
                             docker pull ${ECR_REPO}:${BUILD_NUMBER}
-                            docker run -d \
-                                --name jira-ops-agent \
-                                -p 8080:8081 \
+                            docker run -d --name jira-ops-agent -p 8080:8081 \
                                 -e SPRING_PROFILES_ACTIVE=prod \
                                 -e JIRA_OAUTH_CLIENT_ID=${JIRA_CLIENT_ID} \
                                 -e JIRA_OAUTH_CLIENT_SECRET=${JIRA_CLIENT_SECRET} \
