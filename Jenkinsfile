@@ -25,8 +25,16 @@ pipeline {
 
         stage('Build & Push to ECR with Jib') {
             steps {
-                echo 'Building Docker image with Jib and pushing to ECR...'
-                sh './gradlew jib --image=${ECR_REPO}:${BUILD_NUMBER}'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'awscreds',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    echo 'Building Docker image with Jib and pushing to ECR...'
+                    sh './gradlew jib --image=${ECR_REPO}:${BUILD_NUMBER}'
+                }
             }
         }
 
@@ -35,10 +43,16 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo 'Deploying to EC2...'
-                sshagent(credentials: ['ec2ssh']) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no ec2-user@${EC2_HOST} << EOF
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'awscreds',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    echo 'Deploying to EC2...'
+                    sshagent(credentials: ['ec2ssh']) {
+                        sh '''
                             aws ecr get-login-password --region ${REGION} | \
                             docker login --username AWS --password-stdin ${ECR_REPO}
 
@@ -50,8 +64,8 @@ pipeline {
                                 -p 8080:8081 \
                                 -e SPRING_PROFILES_ACTIVE=prod \
                                 ${ECR_REPO}:${BUILD_NUMBER}
-                        EOF
-                    '''
+                        '''
+                    }
                 }
             }
         }
