@@ -53,32 +53,43 @@ pipeline {
                     string(credentialsId: 'db-url', variable: 'DB_URL'),
                     string(credentialsId: 'db-user', variable: 'DB_USER'),
                     string(credentialsId: 'db-pass', variable: 'DB_PASS'),
-                    string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL')
+                    string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL'),
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2ssh',
+                        usernameVariable: 'SSH_USER',
+                        privateKeyVariable: 'SSH_PRIVATE_KEY'
+                    )
                 ]) {
-                    sshagent(credentials: ['ec2ssh']) {
-                        sh '''
-                            aws ecr get-login-password --region ${REGION} | \
-                            docker login --username AWS --password-stdin ${ECR_REPO}
+                    sh '''
+                        # Write SSH key to temp file
+                        echo "$SSH_PRIVATE_KEY" > /tmp/ec2_key.pem
+                        chmod 600 /tmp/ec2_key.pem
 
-                            ssh -o StrictHostKeyChecking=no ec2-user@${EC2_HOST} << EOF
-                                docker stop jira-ops-agent || true
-                                docker rm jira-ops-agent || true
-                                docker pull ${ECR_REPO}:${BUILD_NUMBER}
-                                docker run -d \
-                                    --name jira-ops-agent \
-                                    -p 8080:8081 \
-                                    -e SPRING_PROFILES_ACTIVE=prod \
-                                    -e JIRA_OAUTH_CLIENT_ID=${JIRA_CLIENT_ID} \
-                                    -e JIRA_OAUTH_CLIENT_SECRET=${JIRA_CLIENT_SECRET} \
-                                    -e GROQ_API_KEY=${GROQ_API_KEY} \
-                                    -e SPRING_DATASOURCE_URL=${DB_URL} \
-                                    -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
-                                    -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
-                                    -e FRONTEND_URL=${FRONTEND_URL} \
-                                    ${ECR_REPO}:${BUILD_NUMBER}
-                            EOF
-                        '''
-                    }
+                        # Login to ECR
+                        aws ecr get-login-password --region ${REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REPO}
+
+                        # Deploy to EC2
+                        ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'EOF'
+                            docker stop jira-ops-agent || true
+                            docker rm jira-ops-agent || true
+                            docker pull ${ECR_REPO}:${BUILD_NUMBER}
+                            docker run -d \
+                                --name jira-ops-agent \
+                                -p 8080:8081 \
+                                -e SPRING_PROFILES_ACTIVE=prod \
+                                -e JIRA_OAUTH_CLIENT_ID=${JIRA_CLIENT_ID} \
+                                -e JIRA_OAUTH_CLIENT_SECRET=${JIRA_CLIENT_SECRET} \
+                                -e GROQ_API_KEY=${GROQ_API_KEY} \
+                                -e SPRING_DATASOURCE_URL=${DB_URL} \
+                                -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
+                                -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
+                                -e FRONTEND_URL=${FRONTEND_URL} \
+                                ${ECR_REPO}:${BUILD_NUMBER}
+                        EOF
+
+                        rm -f /tmp/ec2_key.pem
+                    '''
                 }
             }
         }
