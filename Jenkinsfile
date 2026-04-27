@@ -61,12 +61,11 @@ pipeline {
                         echo "${EC2_SSH_KEY}" > /tmp/ec2_key.pem
                         chmod 600 /tmp/ec2_key.pem
 
-                        # Login to ECR
-                        aws ecr get-login-password --region ${REGION} | \
-                        docker login --username AWS --password-stdin ${ECR_REPO}
-
-                        # Deploy to EC2
+                        # Deploy to EC2 - login to ECR on remote
                         ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
+                            # Login to ECR on remote
+                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
+
                             docker stop jira-ops-agent || true
                             docker rm jira-ops-agent || true
                             docker pull ${ECR_REPO}:${BUILD_NUMBER}
