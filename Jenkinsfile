@@ -57,13 +57,15 @@ pipeline {
                 ]) {
                     sshagent(credentials: ['ec2-key']) {
                         sh '''
-                            # Login to ECR
-                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
-
-                            # SSH to EC2 and deploy
                             ssh -o StrictHostKeyChecking=no ec2-user@${EC2_HOST} << 'ENDSSH'
+                                # Login to ECR on remote EC2
+                                aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
+
+                                # Stop and remove old container
                                 docker stop jira-ops-agent || true
                                 docker rm jira-ops-agent || true
+
+                                # Pull and run new container
                                 docker pull ${ECR_REPO}:${BUILD_NUMBER}
                                 docker run -d --name jira-ops-agent -p 8080:8081 \
                                     -e SPRING_PROFILES_ACTIVE=prod \
