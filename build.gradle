@@ -37,7 +37,8 @@ dependencies {
     implementation 'org.springframework.session:spring-session-jdbc'
     
     // Database
-    runtimeOnly 'org.postgresql:postgresql'
+//    runtimeOnly 'org.postgresql:postgresql'
+    implementation 'org.postgresql:postgresql'
     runtimeOnly 'com.h2database:h2'
     
     // Test
@@ -80,8 +81,9 @@ jib {
         }
     }
     to {
-        image = 'docker.io/tikam321/jira-ops-agent'
+        image = '634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent'
         tags = ['latest', "${version}", "amd64"]
+        credHelper = 'ecr-login'
     }
     container {
         jvmFlags = ['-Xms512m', '-Xmx1024m', '-XX:+UseG1GC']
