@@ -58,6 +58,16 @@ pipeline {
                     sshagent(credentials: ['ec2-key']) {
                         sh '''
                             ssh -o StrictHostKeyChecking=no ec2-user@ec2-13-201-97-38.ap-south-1.compute.amazonaws.com << 'ENDSSH'
+                                # Configure AWS credentials on EC2
+                                mkdir -p ~/.aws
+                                cat > ~/.aws/credentials << 'AWSCREDS'
+[default]
+aws_access_key_id = '"${AWS_ACCESS_KEY_ID}"'
+aws_secret_access_key = '"${AWS_SECRET_ACCESS_KEY}"'
+region = ap-south-1
+AWSCREDS
+
+                                # Export variables
                                 export REGION="ap-south-1"
                                 export ECR_REPO="634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent"
                                 export BUILD_NUMBER="'"${BUILD_NUMBER}"'"
@@ -69,7 +79,7 @@ pipeline {
                                 export DB_PASS="'"${DB_PASS}"'"
                                 export FRONTEND_URL="'"${FRONTEND_URL}"'"
 
-                                # Login to ECR on remote
+                                # Login to ECR
                                 aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
 
                                 # Stop and remove old container
