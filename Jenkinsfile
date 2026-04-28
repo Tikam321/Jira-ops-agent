@@ -109,6 +109,7 @@ docker run -d --name \${CONTAINER_NAME} \\
     -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
     -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
     -e FRONTEND_URL=\${FRONTEND_URL} \\
+    -e APP_BASE_URL=https://${EC2_HOST} \\
     \${ECR_REPO}:\${BUILD_NUMBER}
 
 # Clean up old images (keep last 5)
@@ -139,6 +140,7 @@ DEPLOY_SCRIPT
                                 DB_USER="${DB_USER}" \\
                                 DB_PASS="${DB_PASS}" \\
                                 FRONTEND_URL="${FRONTEND_URL}" \\
+                                APP_BASE_URL="https://${EC2_HOST}" \\
                                 'bash /tmp/deploy.sh'
 
                             echo "=== Deployment successful! ==="
