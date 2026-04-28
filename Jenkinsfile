@@ -57,13 +57,6 @@ pipeline {
                 ]) {
                     sshagent(credentials: ['ec2-key']) {
                         sh '''
-                            # Login to ECR first on local Jenkins
-                            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 634105254197.dkr.ecr.ap-south-1.amazonaws.com
-
-                            # Pull image to local
-                            docker pull 634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent:'${BUILD_NUMBER}'
-
-                            # SSH to EC2 with all variables passed explicitly
                             ssh -o StrictHostKeyChecking=no ec2-user@ec2-13-201-97-38.ap-south-1.compute.amazonaws.com << 'ENDSSH'
                                 export REGION="ap-south-1"
                                 export ECR_REPO="634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent"
