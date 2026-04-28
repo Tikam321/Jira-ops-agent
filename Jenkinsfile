@@ -57,7 +57,27 @@ pipeline {
                 ]) {
                     sshagent(credentials: ['ec2-key']) {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no -o BatchMode=yes ec2-user@${EC2_HOST} "echo SSH connected successfully"
+                            # Login to ECR
+                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
+
+                            # SSH to EC2 and deploy
+                            ssh -o StrictHostKeyChecking=no ec2-user@${EC2_HOST} << 'ENDSSH'
+                                docker stop jira-ops-agent || true
+                                docker rm jira-ops-agent || true
+                                docker pull ${ECR_REPO}:${BUILD_NUMBER}
+                                docker run -d --name jira-ops-agent -p 8080:8081 \
+                                    -e SPRING_PROFILES_ACTIVE=prod \
+                                    -e JIRA_OAUTH_CLIENT_ID=${JIRA_CLIENT_ID} \
+                                    -e JIRA_OAUTH_CLIENT_SECRET=${JIRA_CLIENT_SECRET} \
+                                    -e GROQ_API_KEY=${GROQ_API_KEY} \
+                                    -e SPRING_DATASOURCE_URL=${DB_URL} \
+                                    -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
+                                    -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
+                                    -e FRONTEND_URL=${FRONTEND_URL} \
+                                    ${ECR_REPO}:${BUILD_NUMBER}
+                            ENDSSH
+
+                            echo "Deployment complete!"
                         '''
                     }
                 }
