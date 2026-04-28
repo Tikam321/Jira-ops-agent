@@ -32,7 +32,7 @@ spring:
             client-id: ${JIRA_OAUTH_CLIENT_ID:yi9E2sfsfBSmzJNI03AXC06h3r4GOJJF}
             client-secret: ${JIRA_OAUTH_CLIENT_SECRET:ATOAhDF4tiy33AHjSzl6MwRwG5kad1vUK0GoOX6j1nOmybluR-0P7asXXQI1tAjgH1TJE0E45D3D}
             authorization-grant-type: authorization_code
-            redirect-uri: "${APP_BASE_URL:https://ec2-3-111-149-17.ap-south-1.compute.amazonaws.com}/login/oauth2/code/{registrationId}"
+            redirect-uri: "https://ec2-3-111-149-17.ap-south-1.compute.amazonaws.com/login/oauth2/code/jira"
             scope: read:jira-user, read:jira-work, write:jira-work, offline_access, read:me
             client-name: Jira
         provider:
