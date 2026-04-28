@@ -55,12 +55,11 @@ pipeline {
                     string(credentialsId: 'db-pass', variable: 'DB_PASS'),
                     string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL')
                 ]) {
-                    sh '''
-                        # Test with SSH agent using credentials ID directly
-                        sshagent(credentials: ['ec2-key']) {
+                    sshagent(credentials: ['ec2-key']) {
+                        sh '''
                             ssh -o StrictHostKeyChecking=no -o BatchMode=yes ec2-user@${EC2_HOST} "echo SSH connected successfully"
-                        }
-                    '''
+                        '''
+                    }
                 }
             }
         }
