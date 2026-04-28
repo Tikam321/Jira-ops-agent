@@ -57,8 +57,26 @@ pipeline {
                 ]) {
                     sshagent(credentials: ['ec2-key']) {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no ec2-user@${EC2_HOST} << 'ENDSSH'
-                                # Login to ECR on remote EC2
+                            # Login to ECR first on local Jenkins
+                            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 634105254197.dkr.ecr.ap-south-1.amazonaws.com
+
+                            # Pull image to local
+                            docker pull 634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent:'${BUILD_NUMBER}'
+
+                            # SSH to EC2 with all variables passed explicitly
+                            ssh -o StrictHostKeyChecking=no ec2-user@ec2-13-201-97-38.ap-south-1.compute.amazonaws.com << 'ENDSSH'
+                                export REGION="ap-south-1"
+                                export ECR_REPO="634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent"
+                                export BUILD_NUMBER="'"${BUILD_NUMBER}"'"
+                                export JIRA_CLIENT_ID="'"${JIRA_CLIENT_ID}"'"
+                                export JIRA_CLIENT_SECRET="'"${JIRA_CLIENT_SECRET}"'"
+                                export GROQ_API_KEY="'"${GROQ_API_KEY}"'"
+                                export DB_URL="'"${DB_URL}"'"
+                                export DB_USER="'"${DB_USER}"'"
+                                export DB_PASS="'"${DB_PASS}"'"
+                                export FRONTEND_URL="'"${FRONTEND_URL}"'"
+
+                                # Login to ECR on remote
                                 aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
 
                                 # Stop and remove old container
