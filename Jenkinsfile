@@ -54,17 +54,22 @@ pipeline {
                     string(credentialsId: 'db-user', variable: 'DB_USER'),
                     string(credentialsId: 'db-pass', variable: 'DB_PASS'),
                     string(credentialsId: 'frontend-url', variable: 'FRONTEND_URL'),
-                    string(credentialsId: 'ec2-key', variable: 'SSH_KEY')
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-key',
+                        usernameVariable: 'SSH_USER',
+                        privateKeyVariable: 'SSH_KEY'
+                    )
                 ]) {
                     sh '''
-                        # Write key directly
-                        cat > /tmp/ec2_key.pem << 'KEYEOF'
-'${SSH_KEY}'
-KEYEOF
+                        # Write key using printf to preserve exact format
+                        printf '%s' "${SSH_KEY}" > /tmp/ec2_key.pem
                         chmod 600 /tmp/ec2_key.pem
 
+                        # Debug: show first line of key
+                        head -n1 /tmp/ec2_key.pem
+
                         # Deploy to EC2
-                        ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
+                        ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i /tmp/ec2_key.pem ec2-user@${EC2_HOST} << 'ENDSSH'
                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
                             docker stop jira-ops-agent || true
                             docker rm jira-ops-agent || true
