@@ -97,10 +97,10 @@ docker rm \${CONTAINER_NAME} || true
 echo "Pulling new image: \${ECR_REPO}:\${BUILD_NUMBER}"
 docker pull \${ECR_REPO}:\${BUILD_NUMBER}
 
-# Run new container
+# Run new container (bind to localhost only - nginx handles external access)
 echo "Starting new container..."
 docker run -d --name \${CONTAINER_NAME} \\
-    -p \${HOST_PORT}:\${CONTAINER_PORT} \\
+    -p 127.0.0.1:\${HOST_PORT}:\${CONTAINER_PORT} \\
     -e SPRING_PROFILES_ACTIVE=prod \\
     -e JIRA_OAUTH_CLIENT_ID=\${JIRA_CLIENT_ID} \\
     -e JIRA_OAUTH_CLIENT_SECRET=\${JIRA_CLIENT_SECRET} \\
@@ -150,12 +150,12 @@ DEPLOY_SCRIPT
 
         stage('Health Check') {
             steps {
-                echo 'Performing health check...'
+                echo 'Performing health check through nginx with HTTPS...'
                 sh """
                     set +e
                     MAX_ATTEMPTS=30
                     ATTEMPT=0
-                    HEALTH_URL="http://${EC2_HOST}:${HOST_PORT}/actuator/health"
+                    HEALTH_URL="https://${EC2_HOST}/actuator/health"
 
                     echo "Checking health at: \${HEALTH_URL}"
 
@@ -163,7 +163,8 @@ DEPLOY_SCRIPT
                         ATTEMPT=\$((ATTEMPT + 1))
                         echo "Attempt \${ATTEMPT}/\${MAX_ATTEMPTS}..."
 
-                        RESPONSE=\$(curl -s -o /dev/null -w "%{http_code}" \${HEALTH_URL} || echo "000")
+                        # Use -k to allow self-signed certificates
+                        RESPONSE=\$(curl -k -s -o /dev/null -w "%{http_code}" \${HEALTH_URL} || echo "000")
 
                         if [ "\${RESPONSE}" = "200" ]; then
                             echo "Health check passed!"
