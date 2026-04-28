@@ -5,7 +5,7 @@ pipeline {
         JAVA_HOME = '/usr/lib/jvm/java-21-openjdk-arm64'
         REGION = 'ap-south-1'
         ECR_REPO = '634105254197.dkr.ecr.ap-south-1.amazonaws.com/jira-ops-agent'
-        EC2_HOST = 'ec2-13-201-97-38.ap-south-1.compute.amazonaws.com'
+        EC2_HOST = 'ec2-3-111-149-17.ap-south-1.compute.amazonaws.com'
         CONTAINER_NAME = 'jira-ops-agent'
         CONTAINER_PORT = '8081'
         HOST_PORT = '8080'
