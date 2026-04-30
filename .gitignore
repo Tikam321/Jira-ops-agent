@@ -49,3 +49,8 @@ application-local.yml
 ## .env
 .env
 .env.**
+
+### CI/CD ###
+Jenkinsfile
+Dockerfile.jenkins
+
